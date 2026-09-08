@@ -1,0 +1,262 @@
+erDiagram
+
+    %% =========================================================
+    %% USER / RESERVATION
+    %% =========================================================
+
+    USER ||--o{ BOOKING : places
+    USER ||--o{ NOTIFICATION : receives
+
+    BOOKING ||--|{ BOOKING_PASSENGER : contains
+    BOOKING }o--|| TRAIN_RUN : "for journey"
+    BOOKING }o--|| STATION : "from"
+    BOOKING }o--|| STATION : "to"
+    BOOKING }o--|| FARE_CLASS : "in class"
+    BOOKING }o--|| QUOTA : "under quota"
+
+    %% =========================================================
+    %% PASSENGER / SEAT ALLOCATION
+    %% =========================================================
+
+    PASSENGER ||--o{ BOOKING_PASSENGER : travels_as
+
+    BOOKING_PASSENGER ||--o| SEAT_ALLOCATION : receives
+    SEAT ||--o{ SEAT_ALLOCATION : allocated_to
+
+    %% =========================================================
+    %% TRAIN / TRAIN RUN
+    %% =========================================================
+
+    TRAIN ||--o{ TRAIN_RUN : operates
+
+    TRAIN ||--o{ COACH : contains
+    COACH ||--o{ SEAT : contains
+
+    %% =========================================================
+    %% TRAIN CLASS
+    %% =========================================================
+
+    TRAIN ||--o{ TRAIN_CLASS : offers
+    FARE_CLASS ||--o{ TRAIN_CLASS : available_on
+
+    %% =========================================================
+    %% ROUTE / STATIONS
+    %% =========================================================
+
+    TRAIN ||--o{ TRAIN_STOP : follows
+    STATION ||--o{ TRAIN_STOP : served_by
+
+    %% =========================================================
+    %% TRAIN STATUS
+    %% =========================================================
+
+    TRAIN_RUN ||--o{ TRAIN_STATUS : has_updates
+    STATION ||--o{ TRAIN_STATUS : "current station"
+
+    %% =========================================================
+    %% PAYMENT
+    %% =========================================================
+
+    BOOKING ||--o{ PAYMENT : has_attempts
+
+    %% =========================================================
+    %% CANCELLATION / REFUND
+    %% =========================================================
+
+    BOOKING_PASSENGER ||--o{ CANCELLATION : may_cancel
+    CANCELLATION ||--o| REFUND : generates
+    PAYMENT ||--o{ REFUND : refunded_from
+
+    %% =========================================================
+    %% NOTIFICATION
+    %% =========================================================
+
+    BOOKING ||--o{ NOTIFICATION : triggers
+
+
+    %% =========================================================
+    %% ENTITIES
+    %% =========================================================
+
+    USER {
+        string user_id PK
+        string name
+        string email UK
+        string phone UK
+        string password_hash
+        date dob
+        string gender
+    }
+
+
+    PASSENGER {
+        string passenger_id PK
+        string name
+        int age
+        string gender
+        string id_proof_type
+        string id_proof_number
+    }
+
+
+    TRAIN {
+        string train_id PK
+        string train_number UK
+        string train_name
+        string train_type
+    }
+
+
+    TRAIN_RUN {
+        string train_run_id PK
+        string train_id FK
+        date journey_date
+        string run_status
+        string UNIQUE_train_date
+    }
+
+
+    STATION {
+        string station_id PK
+        string station_code UK
+        string name
+        string city
+        string zone
+    }
+
+
+    TRAIN_STOP {
+        string train_stop_id PK
+        string train_id FK
+        string station_id FK
+        int sequence_no
+        time arrival_time
+        time departure_time
+        int distance_km
+        int day_number
+    }
+
+
+    FARE_CLASS {
+        string class_id PK
+        string class_code UK
+        string class_name
+    }
+
+
+    TRAIN_CLASS {
+        string train_class_id PK
+        string train_id FK
+        string class_id FK
+    }
+
+
+    QUOTA {
+        string quota_id PK
+        string quota_code UK
+        string quota_name
+    }
+
+
+    COACH {
+        string coach_id PK
+        string train_id FK
+        string class_id FK
+        string coach_number
+        string coach_type
+    }
+
+
+    SEAT {
+        string seat_id PK
+        string coach_id FK
+        string seat_number
+        string seat_type
+    }
+
+
+    BOOKING {
+        string booking_id PK
+        string pnr UK
+        string user_id FK
+        string train_run_id FK
+        string source_station_id FK
+        string destination_station_id FK
+        string class_id FK
+        string quota_id FK
+        date journey_date
+        datetime booking_date
+        string booking_status
+        decimal total_fare
+    }
+
+
+    BOOKING_PASSENGER {
+        string booking_passenger_id PK
+        string booking_id FK
+        string passenger_id FK
+        string current_status
+        string berth_preference
+        int waitlist_number
+    }
+
+
+    SEAT_ALLOCATION {
+        string allocation_id PK
+        string booking_passenger_id FK
+        string seat_id FK
+        string allocation_status
+        datetime allocated_at
+    }
+
+
+    PAYMENT {
+        string payment_id PK
+        string booking_id FK
+        decimal amount
+        string payment_mode
+        string transaction_id UK
+        string status
+        datetime paid_at
+    }
+
+
+    CANCELLATION {
+        string cancellation_id PK
+        string booking_passenger_id FK
+        decimal cancellation_charge
+        decimal refund_amount
+        string status
+        datetime cancelled_at
+    }
+
+
+    REFUND {
+        string refund_id PK
+        string cancellation_id FK
+        string payment_id FK
+        decimal refund_amount
+        string status
+        datetime refunded_at
+        string refund_transaction_id UK
+    }
+
+
+    TRAIN_STATUS {
+        string status_id PK
+        string train_run_id FK
+        string current_station_id FK
+        int delay_minutes
+        datetime updated_at
+    }
+
+
+    NOTIFICATION {
+        string notification_id PK
+        string user_id FK
+        string booking_id FK
+        string type
+        string message
+        string delivery_status
+        datetime sent_at
+    }
