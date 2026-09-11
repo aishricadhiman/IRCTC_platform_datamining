@@ -1,0 +1,261 @@
+services:
+
+  # --------------------------------------------------
+  # User Database
+  # --------------------------------------------------
+
+  user-db:
+    image: postgres:16
+    container_name: irctc-user-db
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_users
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  
+  # --------------------------------------------------
+  # Train Database
+  # --------------------------------------------------
+
+  train-db:
+    image: postgres:16
+    container_name: irctc-train-db
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_trains
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - train-db-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_trains"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------
+  # Inventory Database
+  # --------------------------------------------------
+
+  inventory-db:
+    image: postgres:16
+    container_name: irctc-inventory-db
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_inventory
+
+    ports:
+      - "5434:5432"
+
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------
+  # Booking Database
+  # --------------------------------------------------
+
+  booking-db:
+    image: postgres:16
+    container_name: irctc-booking-db
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_bookings
+
+    ports:
+      - "5435:5432"
+
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_bookings"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  
+  # --------------------------------------------------
+  # Payment Database
+  # --------------------------------------------------
+
+  payment-db:
+    image: postgres:16
+    container_name: irctc-payment-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_payments
+    ports:
+      - "5436:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_payments"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------
+  # Notification Database
+  # --------------------------------------------------
+  notification-db:
+    image: postgres:16
+    container_name: irctc-notification-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: irctc_notifications
+    ports:
+      - "5437:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d irctc_notifications"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  # --------------------------------------------------
+  # User Service
+  # --------------------------------------------------
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8001:8000"
+
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@user-db:5432/irctc_users
+
+    depends_on:
+      user-db:
+        condition: service_healthy
+
+
+  # --------------------------------------------------
+  # Train Services
+  # --------------------------------------------------
+
+  train-service:
+    build: ./train-service
+
+    ports:
+      - "8002:8000"
+
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@train-db:5432/irctc_trains
+
+    depends_on:
+      train-db:
+        condition: service_healthy
+
+
+  # --------------------------------------------------
+  # Inventory Services
+  # --------------------------------------------------
+
+  inventory-service:
+    build: ./inventory-service
+
+    ports:
+      - "8003:8000"
+
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@inventory-db:5432/irctc_inventory
+
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  # --------------------------------------------------
+  # Booking Services
+  # --------------------------------------------------
+
+  booking-service:
+    build: ./booking-service
+
+    ports:
+      - "8004:8000"
+
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@booking-db:5432/irctc_bookings
+
+      INVENTORY_URL: http://inventory-service:8000
+      PAYMENT_URL: http://payment-service:8000
+      NOTIFICATION_URL: http://notification-service:8000
+
+    depends_on:
+      booking-db:
+        condition: service_healthy
+
+
+  # --------------------------------------------------
+  # Payment Services
+  # --------------------------------------------------
+
+  payment-service:
+    build: ./payment-service
+    container_name: irctc-payment-service
+    ports:
+      - "8005:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@payment-db:5432/irctc_payments
+    depends_on:
+      payment-db:
+        condition: service_healthy
+
+
+  # --------------------------------------------------
+  # Notification Services
+  # --------------------------------------------------
+
+  notification-service:
+    build: ./notification-service
+    container_name: irctc-notification-service
+    ports:
+      - "8006:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@notification-db:5432/irctc_notifications
+    depends_on:
+      notification-db:
+        condition: service_healthy
+
+
+# --------------------------------------------------
+# Persistent Volumes
+# --------------------------------------------------
+
+volumes:
+  user-db-data:
+  train-db-data:
+  inventory-db-data:
+  booking-db-data:
+  payment-db-data:
+  notification-db-data:
