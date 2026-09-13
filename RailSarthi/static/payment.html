@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - Payment Sandbox (Mock)</title>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="background-color: #f0f7f9; font-family: sans-serif; padding: 40px;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h2>Payment Gateway Checkout</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Step 4: Low-fidelity unstyled sandbox panel representing Group 6 checkout lifecycle</p>
+        
+        <div class="raw-wireframe">
+            <div class="raw-title">GROUP 6 STRIPE / RAZORPAY PAYMENT GATEWAY (MOCK SKELETON)</div>
+            <p class="raw-desc">Billing state machine sandbox callback panel.</p>
+            
+            <div style="background-color: #f7f7f7; border: 1px solid #000; padding: 16px; font-size: 13px; color: #000;">
+                <strong>Transaction Summary:</strong><br>
+                * Train Number: <span id="payment-summary-train">12002</span><br>
+                * Class Category: <span id="payment-summary-class">SL</span><br>
+                * Passenger Count: <span id="payment-summary-count">1</span><br>
+                * Lock Duration: <span style="color: #ff0000; font-weight: bold;">10:00 (Redis Temp Lock Active)</span>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <label>Billing Address Placeholder:</label><br>
+                <input type="text" value="123 Main Road, New Delhi, India" style="width: 350px;" disabled>
+            </div>
+            
+            <div style="margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px;">
+                <strong>SIMULATE INCOMING API GATEWAY WEBHOOK ACTIONS:</strong>
+                <p style="font-size: 11px; margin-top: 4px; color: #333;">Triggering these simulates the payment gateway callbacks to the FastAPI webhook listener.</p>
+                <div style="margin-top: 15px;">
+                    <button type="button" onclick="triggerWebhook('SUCCESS')" style="font-size:13px; font-weight: bold; background-color: #0f0; color: #000; padding: 6px 12px; cursor: pointer; border: 1px solid #000; margin-right: 15px;">Simulate payment.success (Confirm Ticket)</button>
+                    <button type="button" onclick="triggerWebhook('FAILED')" style="font-size:13px; font-weight: bold; background-color: #f00; color: #fff; padding: 6px 12px; cursor: pointer; border: 1px solid #000;">Simulate payment.failed (Release Locks)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check Session Authentication
+        if (sessionStorage.getItem("userLoggedIn") !== "true") {
+            alert("Session unauthorized. Redirecting to Step 1.");
+            window.location.href = "/";
+        }
+
+        // Bind query parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const train = urlParams.get("train_number") || "12002";
+        const classVal = urlParams.get("class_type") || "SL";
+        const count = urlParams.get("count") || "1";
+
+        document.getElementById("payment-summary-train").innerText = train;
+        document.getElementById("payment-summary-class").innerText = classVal;
+        document.getElementById("payment-summary-count").innerText = count;
+
+        async function triggerWebhook(status) {
+            const pendingBooking = JSON.parse(sessionStorage.getItem("pendingBooking"));
+            if (!pendingBooking) {
+                alert("Error: No pending booking payload active. Start from Step 3.");
+                window.location.href = "/static/search.html";
+                return;
+            }
+
+            console.log(`[MOCK_GATEWAY] Received webhook: ${status}`);
+
+            if (status === "FAILED") {
+                console.log("[REDIS_LOCK] Releasing locks in Redis. Discarding transaction.");
+                alert("Simulated Webhook Payment FAILED. Redis locks released. Redirecting back to booking page.");
+                window.location.href = `/static/booking.html?train_number=${train}&class_type=${classVal}`;
+                return;
+            }
+
+            console.log("[MOCK_GATEWAY] Triggering Group 4 Seat Allocation...");
+
+            try {
+                const response = await fetch("/bookings/allocate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(pendingBooking)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Allocation failed");
+                }
+
+                const ticket = await response.json();
+                console.log(`[API_OUT] Booking success. PNR: ${ticket.pnr}`);
+                
+                // Store latest ticket response
+                sessionStorage.setItem("latestTicket", JSON.stringify(ticket));
+                
+                alert(`Payment Confirmed! PNR: ${ticket.pnr} allocated successfully.`);
+                window.location.href = `/static/receipt.html?train_number=${train}&class_type=${classVal}`;
+            } catch (error) {
+                console.error("Allocation failed", error);
+                alert(`Error: ${error.message}`);
+                window.location.href = `/static/booking.html?train_number=${train}&class_type=${classVal}`;
+            }
+        }
+    </script>
+</body>
+</html>

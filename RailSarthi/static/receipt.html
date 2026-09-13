@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - Booking Confirmation & Receipts</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="rs-shell">
+        <!-- Sidebar -->
+        <aside class="rs-sidebar">
+            <a class="rs-side-btn" href="/static/booking.html" title="Seats"><i class="fa-solid fa-couch"></i></a>
+            <a class="rs-side-btn" href="/static/search.html" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            <a class="rs-side-btn active" title="My Bookings"><i class="fa-solid fa-calendar-days"></i></a>
+            <a class="rs-side-btn" title="Notifications" style="position: relative;">
+                <i class="fa-solid fa-bell"></i>
+                <span class="rs-side-dot"></span>
+            </a>
+            <div class="rs-side-avatar" title="Account"><i class="fa-solid fa-user"></i></div>
+            <a class="rs-side-btn" title="Logout" onclick="sessionStorage.clear(); window.location.href='/';"><i class="fa-solid fa-right-from-bracket"></i></a>
+        </aside>
+
+        <!-- Main -->
+        <main class="rs-main">
+            <!-- Top bar: brand + stepper -->
+            <div class="rs-topbar">
+                <div class="rs-brand">
+                    <div class="rs-logo">R</div>
+                    <div>
+                        <h1>RailSarthi</h1>
+                        <span>Your Journey, Our Intelligence</span>
+                    </div>
+                </div>
+                <ol class="rs-stepper">
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Search</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Passengers</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Seats</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Payment</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step current"><span class="rs-step-circle">5</span><span class="rs-step-label">Ticket</span></li>
+                </ol>
+            </div>
+
+            <!-- Train info card -->
+            <div class="rs-train-card">
+                <div class="rs-train-main">
+                    <div class="rs-train-icon"><i class="fa-solid fa-receipt"></i></div>
+                    <div>
+                        <div class="rs-train-name">
+                            <span>Booking Confirmation Receipts</span>
+                        </div>
+                        <div class="rs-route">Ticket review & GNWL waitlist queue board</div>
+                    </div>
+                </div>
+
+                <div class="rs-info-block">
+                    <i class="fa-solid fa-train"></i>
+                    <div><strong id="display-train-name">12002 - Shatabdi Express</strong><span>Train</span></div>
+                </div>
+
+                <div class="rs-info-block">
+                    <i class="fa-solid fa-couch"></i>
+                    <div><strong id="display-class-name">Sleeper (SL)</strong><span>Class</span></div>
+                </div>
+
+                <select id="train-select" style="display:none;">
+                    <option value="12002">12002 - Shatabdi Express</option>
+                    <option value="12626">12626 - Kerala Express</option>
+                </select>
+                <select id="class-select" style="display:none;">
+                    <option value="SL">Sleeper (SL)</option>
+                    <option value="3A">AC 3 Tier (3A)</option>
+                </select>
+            </div>
+
+            <!-- Stats overview -->
+            <div class="rs-stat-grid">
+                <div class="rs-stat-card">
+                    <div class="rs-stat-icon purple"><i class="fa-solid fa-check-double"></i></div>
+                    <div><span>Confirmed Seats (CNF)</span><strong id="stat-cnf">0</strong></div>
+                </div>
+                <div class="rs-stat-card">
+                    <div class="rs-stat-icon amber"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div><span>RAC Berths Occupied</span><strong id="stat-rac">0</strong></div>
+                </div>
+                <div class="rs-stat-card">
+                    <div class="rs-stat-icon red"><i class="fa-solid fa-list-ol"></i></div>
+                    <div><span>Waitlist Priority (GNWL)</span><strong id="stat-wl">0</strong></div>
+                </div>
+                <div class="rs-stat-card">
+                    <div class="rs-stat-icon green"><i class="fa-solid fa-couch"></i></div>
+                    <div><span>Vacant Berths Left</span><strong id="stat-vacant">0</strong></div>
+                </div>
+            </div>
+
+            <!-- 2-column layout -->
+            <div class="rs-columns-2">
+                <!-- Left Panel: Receipts List -->
+                <div class="rs-card">
+                    <div class="rs-card-header-row">
+                        <div>
+                            <div class="rs-card-title"><i class="fa-solid fa-circle-check" style="color: var(--rs-primary);"></i> Active Booking Receipts</div>
+                            <p style="font-size: 12px; color: var(--rs-text-sub); margin-top: 2px;">Review allocated coaches/berths or trigger cancellations.</p>
+                        </div>
+                        <button type="button" class="rs-btn-checkout" style="width:auto; padding: 10px 16px;" onclick="restartBookingWizard()">
+                            <i class="fa-solid fa-rotate-left"></i> Book Another Ticket
+                        </button>
+                    </div>
+
+                    <div class="rs-scroll-list" id="active-bookings-list"></div>
+                </div>
+
+                <!-- Right Panel: Waitlist Table Board -->
+                <div class="rs-card">
+                    <div class="rs-card-title"><i class="fa-solid fa-users-rectangle" style="color: var(--rs-primary);"></i> General Waiting Queue (GNWL)</div>
+                    <p style="font-size: 12px; color: var(--rs-text-sub); margin-top: 2px; margin-bottom: 14px;">Live waitlist priorities showing real-time queue states.</p>
+
+                    <div class="rs-table-wrap">
+                        <table class="rs-table">
+                            <thead>
+                                <tr>
+                                    <th>Priority</th>
+                                    <th>Passenger</th>
+                                    <th>Age/Gen</th>
+                                    <th>Status</th>
+                                    <th>Queue</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waitlist-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Ticket Detail Modal (Pops up immediately on payment success) -->
+    <div id="ticket-modal" class="rs-modal-overlay">
+        <div class="rs-modal-content">
+            <div class="rs-modal-header">
+                <h3><i class="fa-solid fa-circle-check" style="color: var(--rs-green);"></i> Ticket Allocation Details</h3>
+                <button class="rs-modal-close" id="btn-close-modal">&times;</button>
+            </div>
+            <div id="ticket-modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // Check Session Authentication
+        if (sessionStorage.getItem("userLoggedIn") !== "true") {
+            alert("Session unauthorized. Redirecting to Step 1.");
+            window.location.href = "/";
+        }
+
+        // Parse query params
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentTrain = urlParams.get("train_number") || "12002";
+        let currentClass = urlParams.get("class_type") || "SL";
+
+        const TRAIN_NAMES = { "12002": "12002 - Shatabdi Express", "12626": "12626 - Kerala Express" };
+        const CLASS_NAMES = { "SL": "Sleeper (SL)", "3A": "AC 3 Tier (3A)" };
+
+        document.getElementById("train-select").value = currentTrain;
+        document.getElementById("class-select").value = currentClass;
+        document.getElementById("display-train-name").innerText = TRAIN_NAMES[currentTrain] || currentTrain;
+        document.getElementById("display-class-name").innerText = CLASS_NAMES[currentClass] || currentClass;
+
+        // Close Modal
+        const ticketModal = document.getElementById("ticket-modal");
+        const btnCloseModal = document.getElementById("btn-close-modal");
+        btnCloseModal.addEventListener("click", () => {
+            ticketModal.classList.remove("active");
+        });
+        ticketModal.addEventListener("click", (e) => {
+            if (e.target === ticketModal) ticketModal.classList.remove("active");
+        });
+
+        function restartBookingWizard() {
+            console.log("[WIZARD] Resetting wizard. Redirecting back to Step 2 search...");
+            window.location.href = "/static/search.html";
+        }
+
+        // Load active state from FastAPI
+        async function loadState() {
+            try {
+                const response = await fetch(`/bookings/state?train_number=${currentTrain}&class_type=${currentClass}`);
+                const data = await response.json();
+
+                let cnf = 0, rac = 0, vacant = 0;
+                data.seats.forEach(s => {
+                    if (s.status === "BOOKED") cnf++;
+                    else if (s.status === "RAC_ONE") { rac++; vacant++; }
+                    else if (s.status === "RAC_FULL") { rac += 2; }
+                    else vacant++;
+                });
+
+                document.getElementById("stat-cnf").innerText = cnf;
+                document.getElementById("stat-rac").innerText = rac;
+                document.getElementById("stat-wl").innerText = data.waitlist.length;
+                document.getElementById("stat-vacant").innerText = vacant;
+
+                renderBookingsList(data.active_bookings);
+                renderWaitlistTable(data.waitlist);
+            } catch (error) {
+                console.error("Failed to load state", error);
+            }
+        }
+
+        function renderBookingsList(bookings) {
+            const container = document.getElementById("active-bookings-list");
+            container.innerHTML = "";
+
+            if (bookings.length === 0) {
+                container.innerHTML = `
+                    <div class="rs-empty-state">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <p>No active bookings found on this train/class.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            bookings.forEach(b => {
+                const card = document.createElement("div");
+                card.className = "rs-booking-card";
+
+                card.innerHTML = `
+                    <div class="rs-booking-card-head">
+                        <span class="rs-pnr-tag"><i class="fa-solid fa-ticket" style="color: var(--rs-primary);"></i> PNR: ${b.pnr}</span>
+                        <span class="rs-status-tag ${b.status.toLowerCase()}">${b.status.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                        ${b.passengers.map(p => `
+                            <div class="rs-passenger-line">
+                                <span>${p.name} (${p.status})</span>
+                                <span class="seat-tag">${p.coach_name ? `${p.coach_name} / Seat ${p.seat_number}` : 'Waitlist'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="rs-booking-card-actions">
+                        <button class="rs-btn-cancel" onclick="handleCancelPNR('${b.booking_id}', [${b.passengers.map(p=>p.id).join(',')}])">
+                            <i class="fa-solid fa-ban"></i> Cancel Ticket
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderWaitlistTable(waitlist) {
+            const container = document.getElementById("waitlist-table-body");
+            container.innerHTML = "";
+
+            if (waitlist.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 24px; color: var(--rs-text-sub);">
+                            No passengers in waitlist queue.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            waitlist.forEach(w => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><div class="rs-priority-badge">${w.priority}</div></td>
+                    <td><strong>${w.passenger_name}</strong></td>
+                    <td>Age: ${w.age} / ${w.gender}</td>
+                    <td><span class="rs-status-tag wl">WL</span></td>
+                    <td>${w.queue_type}</td>
+                    <td><button class="rs-btn-cancel-sm" onclick="handleCancelPNR('', [${w.passenger_id}])">Cancel</button></td>
+                `;
+                container.appendChild(tr);
+            });
+        }
+
+        window.handleCancelPNR = async function(bookingId, passengerIds) {
+            if (!confirm("Are you sure you want to cancel these tickets? This will trigger Waitlist & RAC promotions.")) return;
+
+            const payload = {
+                booking_id: bookingId,
+                passenger_ids: passengerIds
+            };
+
+            try {
+                const response = await fetch("/bookings/cancel", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Cancellation failed");
+                }
+
+                alert("Cancellation successful! Cascading promotions completed.");
+                loadState();
+            } catch (error) {
+                console.error("Cancellation failed", error);
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // Show ticket modal overlay immediately on new booking arrival
+        function checkLatestTicket() {
+            const ticketData = sessionStorage.getItem("latestTicket");
+            if (ticketData) {
+                const ticket = JSON.parse(ticketData);
+                sessionStorage.removeItem("latestTicket"); // Clear so it only pops up once
+
+                const modalBody = document.getElementById("ticket-modal-body");
+                modalBody.innerHTML = `
+                    <div class="rs-ticket-pnr">
+                        <span>PNR NUMBER</span>
+                        <h2>${ticket.pnr}</h2>
+                    </div>
+                    <div class="rs-ticket-passenger-list">
+                        ${ticket.passengers.map(p => `
+                            <div class="rs-ticket-passenger-card">
+                                <div>
+                                    <h4>${p.name}</h4>
+                                    <p>Status: <span class="rs-status-tag ${p.status.toLowerCase()}">${p.status}</span></p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span class="rs-ticket-seat">${p.coach_name ? `${p.coach_name} / Seat ${p.seat_number}` : 'GNWL Queue'}</span>
+                                    <p>${p.berth_allocated || 'Waitlisted'}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                ticketModal.classList.add("active");
+            }
+        }
+
+        // Startup load
+        window.addEventListener("DOMContentLoaded", () => {
+            loadState();
+            checkLatestTicket();
+        });
+    </script>
+</body>
+</html>

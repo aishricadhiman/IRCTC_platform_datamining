@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - User Authentication (Mock)</title>
+    <!-- Custom Style (Mainly for unstyled raw-wireframe class to preserve structure) -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="background-color: #f0f7f9; font-family: sans-serif; padding: 40px;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h2>User Authentication</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Step 1: Low-fidelity unstyled browser mock for Group 2 Authentication</p>
+        
+        <div class="raw-wireframe">
+            <div class="raw-title">GROUP 2 AUTHENTICATION SERVICE (MOCK SKELETON)</div>
+            <p class="raw-desc">This is a low-fidelity unstyled browser rendering representing user signup/login models.</p>
+            
+            <form id="login-form">
+                <div class="raw-group">
+                    <label>Enter Username / Email:</label><br>
+                    <input type="text" value="traveler_irctc_mock@gmail.com" required style="width: 250px;">
+                </div>
+                <div class="raw-group" style="margin-top: 10px;">
+                    <label>Password Context Token:</label><br>
+                    <input type="password" value="pass12345" required style="width: 250px;">
+                </div>
+                <div class="raw-group" style="margin-top: 15px;">
+                    <button type="submit">Login & Authorize Session</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("login-form").addEventListener("submit", (e) => {
+            e.preventDefault();
+            console.log("[POST] [/auth/login] - Credentials validated.");
+            sessionStorage.setItem("userLoggedIn", "true");
+            window.location.href = "/static/search.html";
+        });
+    </script>
+</body>
+</html>

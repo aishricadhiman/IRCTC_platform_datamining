@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - Coach Layout & Reservations</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="rs-shell">
+        <!-- Sidebar -->
+        <aside class="rs-sidebar">
+            <a class="rs-side-btn active" title="Seats"><i class="fa-solid fa-couch"></i></a>
+            <a class="rs-side-btn" href="/static/search.html" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            <a class="rs-side-btn" title="My Bookings"><i class="fa-solid fa-calendar-days"></i></a>
+            <a class="rs-side-btn" title="Notifications" style="position: relative;">
+                <i class="fa-solid fa-bell"></i>
+                <span class="rs-side-dot"></span>
+            </a>
+            <div class="rs-side-avatar" title="Account"><i class="fa-solid fa-user"></i></div>
+            <a class="rs-side-btn" title="Logout" onclick="sessionStorage.clear(); window.location.href='/';"><i class="fa-solid fa-right-from-bracket"></i></a>
+        </aside>
+
+        <!-- Main -->
+        <main class="rs-main">
+            <!-- Top bar: brand + stepper -->
+            <div class="rs-topbar">
+                <div class="rs-brand">
+                    <div class="rs-logo">R</div>
+                    <div>
+                        <h1>RailSarthi</h1>
+                        <span>Your Journey, Our Intelligence</span>
+                    </div>
+                </div>
+                <ol class="rs-stepper">
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Search</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step done"><span class="rs-step-circle"><i class="fa-solid fa-check"></i></span><span class="rs-step-label">Passengers</span></li>
+                    <li class="rs-step-line done"></li>
+                    <li class="rs-step current"><span class="rs-step-circle">3</span><span class="rs-step-label">Seats</span></li>
+                    <li class="rs-step-line"></li>
+                    <li class="rs-step"><span class="rs-step-circle">4</span><span class="rs-step-label">Payment</span></li>
+                    <li class="rs-step-line"></li>
+                    <li class="rs-step"><span class="rs-step-circle">5</span><span class="rs-step-label">Ticket</span></li>
+                </ol>
+            </div>
+
+            <!-- Train info card -->
+            <div class="rs-train-card">
+                <div class="rs-train-main">
+                    <div class="rs-train-icon"><i class="fa-solid fa-train"></i></div>
+                    <div>
+                        <div class="rs-train-name">
+                            <span id="display-train-name">12002 &ndash; Shatabdi Express</span>
+                            <span class="rs-status-pill"><i class="fa-solid fa-circle" style="font-size:6px;"></i> Running on Time</span>
+                        </div>
+                        <div class="rs-route">
+                            <span id="display-route">New Delhi (NDLS)</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                            <span id="display-dest">Lucknow (LKO)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rs-info-block">
+                    <i class="fa-solid fa-calendar-day"></i>
+                    <div><strong>22 Aug, 2026</strong><span>Saturday</span></div>
+                </div>
+
+                <div class="rs-info-block">
+                    <i class="fa-solid fa-couch"></i>
+                    <div>
+                        <select id="class-select" class="rs-info-select"></select>
+                        <span>General Quota</span>
+                    </div>
+                </div>
+
+                <button type="button" class="rs-btn-outline" onclick="window.location.href='/static/search.html'">
+                    <i class="fa-solid fa-pen"></i> Change Search
+                </button>
+
+                <!-- hidden select kept for query-param logic -->
+                <select id="train-select" style="display:none;">
+                    <option value="12002">12002 - Shatabdi Express</option>
+                    <option value="12626">12626 - Kerala Express</option>
+                </select>
+            </div>
+
+            <!-- 3-column layout -->
+            <div class="rs-columns">
+
+                <!-- LEFT COLUMN -->
+                <div class="rs-col">
+                    <div class="rs-gradient-card">
+                        <div class="rs-card-header-row" style="margin-bottom:0;">
+                            <div class="rs-card-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Journey Insights</div>
+                            <i class="fa-solid fa-circle-info" style="opacity:0.7; font-size:12px;"></i>
+                        </div>
+                        <div class="rs-insight-grid">
+                            <div class="rs-insight-tile">
+                                <span>Seats Available</span>
+                                <strong id="stat-vacant">0</strong>
+                                <em id="stat-vacant-of">of 0</em>
+                            </div>
+                            <div class="rs-insight-tile">
+                                <span>Coach Occupancy</span>
+                                <strong id="stat-occupancy">0%</strong>
+                                <em id="stat-occupancy-label">Low</em>
+                            </div>
+                            <div class="rs-insight-tile">
+                                <span>Est. Confirmation</span>
+                                <strong id="stat-confirmation">0%</strong>
+                                <em id="stat-confirmation-label">&mdash;</em>
+                            </div>
+                        </div>
+                        <div class="rs-ai-score">
+                            <div class="rs-ai-score-text">
+                                <strong>AI Score for this coach</strong>
+                                <em>Based on live data, historical trends & occupancy</em>
+                            </div>
+                            <div class="rs-ai-score-value"><i class="fa-solid fa-star"></i> <span id="stat-ai-score">&ndash;/10</span></div>
+                        </div>
+                    </div>
+
+                    <div class="rs-card">
+                        <div class="rs-card-header-row">
+                            <div class="rs-card-title" style="margin-bottom:0;"><i class="fa-solid fa-user-plus"></i> Passenger Details</div>
+                            <button type="button" id="btn-add-passenger" class="rs-btn-add"><i class="fa-solid fa-plus"></i> Add Passenger</button>
+                        </div>
+
+                        <form id="booking-form">
+                            <div id="passenger-rows"></div>
+
+                            <div class="rs-ai-panel">
+                                <div class="rs-ai-panel-head"><i class="fa-solid fa-star"></i> AI Recommendation</div>
+                                <p class="rs-ai-desc">Based on live availability, we recommend a berth for Passenger 1:</p>
+                                <div class="rs-ai-rec-row">
+                                    <div class="rs-ai-rec-left">
+                                        <div class="rs-ai-rec-avatar"><i class="fa-solid fa-user"></i></div>
+                                        <strong id="rec-berth-label">Finding best seat&hellip;</strong>
+                                    </div>
+                                    <span class="rs-match-badge" id="rec-match-badge"><i class="fa-solid fa-bolt"></i> &ndash;% Match</span>
+                                </div>
+                                <div class="rs-ai-tags" id="rec-tags"></div>
+                                <button type="button" id="btn-choose-recommended" class="rs-btn-primary-block">
+                                    <i class="fa-solid fa-star"></i> Choose Recommended Seat
+                                </button>
+                            </div>
+
+                            <button type="submit" style="display:none;"></button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- CENTER COLUMN -->
+                <div class="rs-col">
+                    <div class="rs-card">
+                        <div class="rs-seat-header">
+                            <div>
+                                <div class="rs-seat-title">
+                                    <span id="display-coach-name">Coach S1</span>
+                                    <span class="rs-live-pill"><span class="rs-pulse-dot"></span> Live</span>
+                                </div>
+                                <div class="rs-seat-subtitle">Click on any available seat to select it for a passenger</div>
+                            </div>
+                            <div class="rs-seat-controls">
+                                <button type="button" class="rs-btn-outline"><i class="fa-solid fa-table-cells"></i> Coach Layout</button>
+                                <button type="button" class="rs-icon-btn" onclick="zoomSeats(1)"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                                <button type="button" class="rs-icon-btn" onclick="zoomSeats(-1)"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="rs-legend">
+                            <div class="rs-legend-item"><span class="rs-legend-swatch available"></span> Available</div>
+                            <div class="rs-legend-item"><span class="rs-legend-swatch selected"></span> Selected</div>
+                            <div class="rs-legend-item"><span class="rs-legend-swatch booked"></span> Booked (CNF)</div>
+                            <div class="rs-legend-item"><span class="rs-legend-swatch rac"></span> RAC</div>
+                            <div class="rs-legend-item"><span class="rs-legend-swatch locked"></span> Locked</div>
+                            <div class="rs-legend-item"><i class="fa-solid fa-star" style="color: var(--rs-amber); font-size:11px;"></i> Recommended</div>
+                        </div>
+
+                        <div class="rs-seat-wrap-outer">
+                            <button type="button" class="rs-scroll-btn left" onclick="scrollSeats(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                            <div class="rs-seat-wrap" id="seat-scroll-wrap">
+                                <div class="rs-exit-marker"><i class="fa-solid fa-person-walking-arrow-right"></i> Exit</div>
+                                <div class="rs-seats-grid" id="seats-grid-container"></div>
+                                <div class="rs-side-icon-col">
+                                    <i class="fa-solid fa-toilet"></i>
+                                    <i class="fa-solid fa-mug-hot"></i>
+                                </div>
+                                <div class="rs-exit-marker"><i class="fa-solid fa-person-walking-arrow-right"></i> Exit</div>
+                            </div>
+                            <button type="button" class="rs-scroll-btn right" onclick="scrollSeats(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+
+                        <div class="rs-tips-grid">
+                            <div class="rs-tip-card">
+                                <i class="fa-solid fa-lightbulb" style="color: var(--rs-amber);"></i>
+                                <div>
+                                    <h5>Why this seat?</h5>
+                                    <p id="tip-why">Select a seat to see why it's a good fit for your journey.</p>
+                                </div>
+                            </div>
+                            <div class="rs-tip-card">
+                                <i class="fa-solid fa-heart-pulse" style="color: var(--rs-green);"></i>
+                                <div>
+                                    <h5>Live Status</h5>
+                                    <p id="tip-status">Watching seat availability in real time for this coach.</p>
+                                </div>
+                            </div>
+                            <div class="rs-tip-card">
+                                <i class="fa-solid fa-gift" style="color: var(--rs-primary);"></i>
+                                <div>
+                                    <h5>Pro Tip</h5>
+                                    <p>Book now! High demand expected in the next 24 hrs.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rs-banner">
+                        <div class="rs-banner-text">
+                            <h3>Enjoy your journey! <i class="fa-solid fa-sparkles"></i></h3>
+                            <p>Book your tickets, sit back and make memories along the way</p>
+                        </div>
+                        <div class="rs-banner-icon"><i class="fa-solid fa-train-subway"></i></div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN -->
+                <div class="rs-col">
+                    <div class="rs-gradient-card">
+                        <div class="rs-summary-head">
+                            <div class="rs-card-title" style="margin-bottom:0;">Your Booking</div>
+                            <span class="rs-summary-badge" id="summary-passenger-count">1</span>
+                        </div>
+                        <div class="rs-summary-line" id="summary-train-line">12002 &ndash; Shatabdi Express</div>
+                        <div class="rs-summary-line" style="opacity:0.75; font-size:11px;">22 Aug, 2026 &bull; 20:00</div>
+
+                        <div class="rs-summary-route">
+                            <span>NDLS</span>
+                            <i class="fa-solid fa-arrow-right" style="font-size:11px;"></i>
+                            <span>LKO</span>
+                        </div>
+
+                        <div class="rs-summary-grid">
+                            <div><span>Coach</span><strong id="summary-coach">S1</strong></div>
+                            <div><span>Class</span><strong id="summary-class">Sleeper (SL)</strong></div>
+                        </div>
+
+                        <div class="rs-berths-box" id="summary-berths">No seats selected yet</div>
+
+                        <div class="rs-barcode">
+                            <div class="rs-barcode-strip"></div>
+                            <p>PNR will be generated after payment</p>
+                        </div>
+
+                        <div class="rs-hold-timer"><i class="fa-regular fa-clock"></i> Hold for <span id="hold-timer">10:00</span> min</div>
+                    </div>
+
+                    <div class="rs-card">
+                        <div class="rs-card-header-row">
+                            <div class="rs-card-title" style="margin-bottom:0;">Payment Method</div>
+                            <button type="button" class="rs-icon-btn"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <div class="rs-fake-card">
+                            <div class="rs-fake-card-top">
+                                <div class="rs-fake-card-chip"></div>
+                                <strong style="font-style: italic; font-size: 15px;">VISA</strong>
+                            </div>
+                            <div class="rs-fake-card-num">4319&nbsp; 5312&nbsp; 6446&nbsp; 1675</div>
+                            <div class="rs-fake-card-bottom">
+                                <div>CARD HOLDER<strong>ANDRE SILVA</strong></div>
+                                <div>EXPIRES<strong>10/29</strong></div>
+                            </div>
+                        </div>
+                        <label class="rs-cash-row">
+                            Pay with cash
+                            <input type="checkbox">
+                        </label>
+                    </div>
+
+                    <div class="rs-card">
+                        <div class="rs-card-title" style="margin-bottom:14px;">Price Details</div>
+                        <div class="rs-price-row"><span>Base Fare</span><span id="price-base">&#8377;0</span></div>
+                        <div class="rs-price-row"><span>GST & Charges</span><span id="price-gst">&#8377;0</span></div>
+                        <div class="rs-price-row"><span>Platform Fee</span><span id="price-platform">&#8377;0</span></div>
+                        <hr class="rs-price-divider">
+                        <div class="rs-total-row">
+                            <strong>Total Amount</strong>
+                            <span class="rs-total-value" id="price-total">&#8377;0</span>
+                        </div>
+                        <button type="button" id="btn-checkout" class="rs-btn-checkout">
+                            <i class="fa-solid fa-lock"></i> Proceed to Payment <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                        <div class="rs-secure-note"><i class="fa-solid fa-shield-halved"></i> 100% Secure &bull; Your data is safe with us</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Check Session Authentication
+        if (sessionStorage.getItem("userLoggedIn") !== "true") {
+            alert("Session unauthorized. Redirecting to Step 1.");
+            window.location.href = "/";
+        }
+
+        // Parse query params
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentTrain = urlParams.get("train_number") || "12002";
+        let currentClass = urlParams.get("class_type") || "SL";
+
+        const TRAIN_INFO = {
+            "12002": { name: "12002 &ndash; Shatabdi Express", src: "New Delhi (NDLS)", dst: "Lucknow (LKO)", srcCode: "NDLS", dstCode: "LKO" },
+            "12626": { name: "12626 &ndash; Kerala Express", src: "New Delhi (NDLS)", dst: "Thiruvananthapuram (TVC)", srcCode: "NDLS", dstCode: "TVC" }
+        };
+        const CLASS_INFO = { "SL": "Sleeper (SL)", "3A": "AC 3 Tier (3A)" };
+        const FARE_TABLE = { "SL": 560, "3A": 1450 };
+        const BERTH_LABELS = {
+            NONE: "No Preference", LOWER: "Lower", MIDDLE: "Middle", UPPER: "Upper",
+            SIDE_LOWER: "Side Lower", SIDE_UPPER: "Side Upper"
+        };
+
+        document.getElementById("train-select").value = currentTrain;
+
+        const classSelect = document.getElementById("class-select");
+        classSelect.innerHTML = Object.keys(CLASS_INFO).map(val =>
+            `<option value="${val}">${CLASS_INFO[val]}</option>`
+        ).join("");
+        classSelect.value = currentClass;
+
+        classSelect.addEventListener("change", (e) => {
+            currentClass = e.target.value;
+            history.replaceState(null, "", `?train_number=${currentTrain}&class_type=${currentClass}`);
+            selectedSeats = [];
+            refreshHeaderInfo();
+            loadState();
+        });
+
+        function refreshHeaderInfo() {
+            const info = TRAIN_INFO[currentTrain] || TRAIN_INFO["12002"];
+            document.getElementById("display-train-name").innerHTML = info.name;
+            document.getElementById("display-route").innerText = info.src;
+            document.getElementById("display-dest").innerText = info.dst;
+            document.getElementById("summary-train-line").innerHTML = info.name;
+            document.getElementById("summary-class").innerText = CLASS_INFO[currentClass] || currentClass;
+            document.querySelector(".rs-summary-route span:first-child").innerText = info.srcCode;
+            document.querySelector(".rs-summary-route span:last-child").innerText = info.dstCode;
+        }
+        refreshHeaderInfo();
+
+        // ---- Passenger rows ----
+        let passengerCount = 0;
+        let seatState = []; // latest seats data from API
+        let selectedSeats = []; // array of seat_number selected by the user, in passenger order
+
+        function berthChipsHTML(rowNum) {
+            return Object.keys(BERTH_LABELS).map(val =>
+                `<button type="button" class="rs-chip p-preference-chip ${val === 'NONE' ? 'active' : ''}" data-value="${val}" data-row="${rowNum}">${BERTH_LABELS[val]}</button>`
+            ).join("");
+        }
+
+        function buildPassengerRow(rowNum) {
+            const rowCard = document.createElement("div");
+            rowCard.className = "rs-passenger-row";
+            rowCard.id = `passenger-row-${rowNum}`;
+            rowCard.innerHTML = `
+                <div class="rs-passenger-row-head">
+                    <h4><i class="fa-solid fa-user"></i> Passenger #${rowNum}</h4>
+                    <button type="button" class="rs-icon-btn-danger" onclick="removePassengerRow(${rowNum})" style="display:none;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+                <div class="rs-field-row">
+                    <div class="rs-field" style="flex:2;">
+                        <label>Full Name</label>
+                        <input type="text" class="p-name" placeholder="Full Name" required>
+                    </div>
+                    <div class="rs-field">
+                        <label>Age</label>
+                        <input type="number" class="p-age" min="1" max="120" placeholder="Age" required>
+                    </div>
+                    <div class="rs-field">
+                        <label>Gender</label>
+                        <select class="p-gender">
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                            <option value="O">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <span class="rs-chip-label">Berth Preference</span>
+                <div class="rs-chip-row p-preference-group" data-row="${rowNum}">
+                    ${berthChipsHTML(rowNum)}
+                </div>
+                <input type="hidden" class="p-preference" value="NONE">
+                <div class="rs-check-row">
+                    <label class="rs-check-item"><input type="checkbox"> Near Exit / Door</label>
+                    <label class="rs-check-item"><input type="checkbox"> Near Washroom <i class="fa-solid fa-circle-info" style="font-size:10px;"></i></label>
+                </div>
+            `;
+            document.getElementById("passenger-rows").appendChild(rowCard);
+
+            rowCard.querySelectorAll(".p-preference-chip").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    rowCard.querySelectorAll(".p-preference-chip").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    rowCard.querySelector(".p-preference").value = btn.dataset.value;
+                });
+            });
+        }
+
+        function addPassengerRow() {
+            passengerCount++;
+            buildPassengerRow(passengerCount);
+            reorderPassengerLabels();
+            updateBookingSummary();
+        }
+        document.getElementById("btn-add-passenger").addEventListener("click", addPassengerRow);
+
+        window.removePassengerRow = function (id) {
+            const row = document.getElementById(`passenger-row-${id}`);
+            if (row) {
+                row.remove();
+                passengerCount--;
+                reorderPassengerLabels();
+                // trim selected seats to new passenger count
+                if (selectedSeats.length > passengerCount) {
+                    selectedSeats = selectedSeats.slice(0, passengerCount);
+                }
+                renderSeatMap(seatState);
+                updateBookingSummary();
+            }
+        };
+
+        function reorderPassengerLabels() {
+            const cards = document.getElementById("passenger-rows").querySelectorAll(".rs-passenger-row");
+            cards.forEach((card, index) => {
+                const num = index + 1;
+                card.id = `passenger-row-${num}`;
+                card.querySelector("h4").innerHTML = `<i class="fa-solid fa-user"></i> Passenger #${num}`;
+                const removeBtn = card.querySelector(".rs-icon-btn-danger");
+                removeBtn.setAttribute("onclick", `removePassengerRow(${num})`);
+                removeBtn.style.display = cards.length > 1 ? "inline-flex" : "none";
+            });
+        }
+
+        addPassengerRow(); // start with Passenger #1
+
+        // ---- Seat selection ----
+        function onSeatClick(seatNumber, status) {
+            if (status !== "VACANT") return;
+            const idx = selectedSeats.indexOf(seatNumber);
+            if (idx !== -1) {
+                selectedSeats.splice(idx, 1);
+            } else {
+                if (selectedSeats.length >= Math.max(passengerCount, 1)) {
+                    selectedSeats.shift(); // drop oldest selection to make room
+                }
+                selectedSeats.push(seatNumber);
+            }
+            syncPreferenceFromSelection();
+            renderSeatMap(seatState);
+            updateBookingSummary();
+        }
+
+        function syncPreferenceFromSelection() {
+            selectedSeats.forEach((seatNum, i) => {
+                const seat = seatState.find(s => s.seat_number === seatNum);
+                if (!seat) return;
+                const rowCard = document.getElementById(`passenger-row-${i + 1}`);
+                if (!rowCard) return;
+                const chips = rowCard.querySelectorAll(".p-preference-chip");
+                chips.forEach(c => c.classList.toggle("active", c.dataset.value === seat.berth_type));
+                rowCard.querySelector(".p-preference").value = seat.berth_type;
+
+                if (i === 0) {
+                    document.getElementById("tip-why").innerText =
+                        `Seat ${seatNum} (${BERTH_LABELS[seat.berth_type] || seat.berth_type} Berth) selected — a good pick with easy access.`;
+                }
+            });
+        }
+
+        // ---- Load & Render Seat Grid State from FastAPI ----
+        let recommendedSeatNumber = null;
+
+        async function loadState() {
+            try {
+                const response = await fetch(`/bookings/state?train_number=${currentTrain}&class_type=${currentClass}`);
+                const data = await response.json();
+
+                document.getElementById("display-coach-name").innerText = `Coach ${data.coach_name || 'N/A'}`;
+                document.getElementById("summary-coach").innerText = data.coach_name || 'N/A';
+
+                seatState = data.seats;
+                const total = seatState.length;
+                let cnf = 0, rac = 0, vacant = 0;
+                seatState.forEach(s => {
+                    if (s.status === "BOOKED") cnf++;
+                    else if (s.status === "RAC_ONE") { rac++; vacant++; }
+                    else if (s.status === "RAC_FULL") { rac += 2; }
+                    else vacant++;
+                });
+
+                document.getElementById("stat-vacant").innerText = vacant;
+                document.getElementById("stat-vacant-of").innerText = `of ${total}`;
+
+                const occupancyPct = total ? Math.round(((total - vacant) / total) * 100) : 0;
+                document.getElementById("stat-occupancy").innerText = `${occupancyPct}%`;
+                document.getElementById("stat-occupancy-label").innerText =
+                    occupancyPct < 40 ? "Low" : occupancyPct < 75 ? "Moderate" : "High";
+
+                const wlCount = data.waitlist.length;
+                const confirmationPct = Math.max(35, Math.min(99, 99 - wlCount * 6));
+                document.getElementById("stat-confirmation").innerText = `${confirmationPct}%`;
+                document.getElementById("stat-confirmation-label").innerText =
+                    confirmationPct >= 85 ? "Very High" : confirmationPct >= 60 ? "High" : "Moderate";
+
+                const aiScore = Math.max(1, Math.min(10, (confirmationPct / 10) - (occupancyPct / 100)));
+                document.getElementById("stat-ai-score").innerText = `${aiScore.toFixed(1)}/10`;
+
+                // recommendation: first vacant seat, preferring LOWER berths
+                const vacantSeats = seatState.filter(s => s.status === "VACANT");
+                const lowerFirst = vacantSeats.sort((a, b) => {
+                    const score = t => t === "LOWER" ? 0 : t === "SIDE_LOWER" ? 1 : 2;
+                    return score(a.berth_type) - score(b.berth_type) || a.seat_number - b.seat_number;
+                });
+                const rec = lowerFirst[0];
+                recommendedSeatNumber = rec ? rec.seat_number : null;
+
+                if (rec) {
+                    document.getElementById("rec-berth-label").innerText =
+                        `Berth ${rec.seat_number} (${BERTH_LABELS[rec.berth_type] || rec.berth_type})`;
+                    const matchPct = 90 + Math.min(9, Math.round(vacant / Math.max(1, total) * 9));
+                    document.getElementById("rec-match-badge").innerHTML = `<i class="fa-solid fa-bolt"></i> ${matchPct}% Match`;
+                    document.getElementById("rec-tags").innerHTML = [
+                        BERTH_LABELS[rec.berth_type] ? `${BERTH_LABELS[rec.berth_type]} Berth` : null,
+                        "Low Occupancy Area",
+                        "Smooth Journey"
+                    ].filter(Boolean).map(t => `<span class="rs-ai-tag">${t}</span>`).join("");
+                } else {
+                    document.getElementById("rec-berth-label").innerText = "No vacant seats right now";
+                    document.getElementById("rec-match-badge").innerHTML = `<i class="fa-solid fa-bolt"></i> &ndash;`;
+                    document.getElementById("rec-tags").innerHTML = "";
+                }
+
+                renderSeatMap(seatState);
+                updateBookingSummary();
+            } catch (error) {
+                console.error("Failed to load train layout state", error);
+            }
+        }
+
+        document.getElementById("btn-choose-recommended").addEventListener("click", () => {
+            if (recommendedSeatNumber == null) return;
+            if (!selectedSeats.includes(recommendedSeatNumber)) {
+                if (selectedSeats.length >= Math.max(passengerCount, 1)) selectedSeats.shift();
+                selectedSeats.push(recommendedSeatNumber);
+            }
+            syncPreferenceFromSelection();
+            renderSeatMap(seatState);
+            updateBookingSummary();
+        });
+
+        function renderSeatMap(seats) {
+            const container = document.getElementById("seats-grid-container");
+            container.innerHTML = "";
+            if (!seats || !seats.length) return;
+            const totalBays = Math.ceil(seats.length / 8);
+            container.style.gridTemplateColumns = `repeat(${totalBays * 3}, minmax(46px, 1fr))`;
+
+            seats.forEach(s => {
+                const bay = Math.floor((s.seat_number - 1) / 8);
+                const remainder = (s.seat_number - 1) % 8;
+
+                let row = 1;
+                if (remainder === 2 || remainder === 5) row = 1;
+                else if (remainder === 1 || remainder === 4) row = 2;
+                else if (remainder === 0 || remainder === 3) row = 3;
+                else if (remainder === 7) row = 1;
+                else if (remainder === 6) row = 5;
+
+                const colOffset = bay * 3;
+                let col = colOffset + 1;
+                if (remainder >= 3 && remainder <= 5) col = colOffset + 2;
+                else if (remainder === 6 || remainder === 7) col = colOffset + 3;
+
+                const seatDiv = document.createElement("div");
+                let cls = "rs-seat";
+                if (s.status === "BOOKED" || s.status === "RAC_FULL") cls += " rs-booked";
+                else if (s.status === "RAC_ONE") cls += " rs-rac";
+                else if (s.status === "LOCKED") cls += " rs-locked";
+                else if (selectedSeats.includes(s.seat_number)) cls += " rs-selected";
+                if (s.seat_number === recommendedSeatNumber && s.status === "VACANT") cls += " rs-recommended";
+                seatDiv.className = cls;
+                seatDiv.style.gridRow = row;
+                seatDiv.style.gridColumn = col;
+                seatDiv.innerHTML = `${s.seat_number}<span class="rs-seat-type">${s.berth_type.replace('_', ' ').slice(0, 9)}</span>`;
+                seatDiv.addEventListener("click", () => onSeatClick(s.seat_number, s.status));
+
+                container.appendChild(seatDiv);
+            });
+
+            for (let c = 1; c <= totalBays * 3; c++) {
+                const gapDiv = document.createElement("div");
+                gapDiv.className = "rs-seats-grid-gap";
+                gapDiv.style.gridColumn = c;
+                container.appendChild(gapDiv);
+            }
+        }
+
+        function scrollSeats(dir) {
+            document.getElementById("seat-scroll-wrap").scrollBy({ left: dir * 240, behavior: "smooth" });
+        }
+
+        let seatZoom = 1;
+        function zoomSeats(dir) {
+            seatZoom = Math.max(0.7, Math.min(1.4, seatZoom + dir * 0.15));
+            document.getElementById("seats-grid-container").style.transform = `scale(${seatZoom})`;
+            document.getElementById("seats-grid-container").style.transformOrigin = "left center";
+        }
+
+        // ---- Booking summary + price ----
+        function updateBookingSummary() {
+            const count = Math.max(passengerCount, 1);
+            document.getElementById("summary-passenger-count").innerText = count;
+
+            if (selectedSeats.length) {
+                const parts = selectedSeats.map(num => {
+                    const seat = seatState.find(s => s.seat_number === num);
+                    const label = seat ? (BERTH_LABELS[seat.berth_type] || seat.berth_type) : "";
+                    return `${num} (${label})`;
+                });
+                document.getElementById("summary-berths").innerText = parts.join(", ");
+            } else {
+                document.getElementById("summary-berths").innerText = "No seats selected yet";
+            }
+
+            const baseFarePerHead = FARE_TABLE[currentClass] || 560;
+            const base = baseFarePerHead * count;
+            const gst = Math.round(base * 0.15);
+            const platform = 0;
+            const total = base + gst + platform;
+
+            document.getElementById("price-base").innerText = `₹${base}`;
+            document.getElementById("price-gst").innerText = `₹${gst}`;
+            document.getElementById("price-platform").innerText = `₹${platform}`;
+            document.getElementById("price-total").innerText = `₹${total}`;
+        }
+
+        // ---- Hold countdown timer (cosmetic) ----
+        let holdSeconds = 10 * 60;
+        setInterval(() => {
+            if (holdSeconds <= 0) return;
+            holdSeconds--;
+            const m = String(Math.floor(holdSeconds / 60)).padStart(2, "0");
+            const s = String(holdSeconds % 60).padStart(2, "0");
+            document.getElementById("hold-timer").innerText = `${m}:${s}`;
+        }, 1000);
+
+        // ---- Checkout: redirect to Payment Sandbox ----
+        document.getElementById("btn-checkout").addEventListener("click", () => {
+            const cards = document.getElementById("passenger-rows").querySelectorAll(".rs-passenger-row");
+            const passengers = [];
+
+            cards.forEach(card => {
+                passengers.push({
+                    name: card.querySelector(".p-name").value,
+                    age: parseInt(card.querySelector(".p-age").value),
+                    gender: card.querySelector(".p-gender").value,
+                    berth_preference: card.querySelector(".p-preference").value
+                });
+            });
+
+            for (const p of passengers) {
+                if (!p.name || !p.age) {
+                    alert("Please fill in all passenger details before proceeding.");
+                    return;
+                }
+            }
+
+            const payload = {
+                train_number: currentTrain,
+                class_type: currentClass,
+                passengers: passengers
+            };
+
+            sessionStorage.setItem("pendingBooking", JSON.stringify(payload));
+            console.log("[REDIS_LOCK] Locked seats in Redis.");
+            window.location.href = `/static/payment.html?train_number=${currentTrain}&class_type=${currentClass}&count=${passengers.length}`;
+        });
+
+        // Load startup State
+        window.addEventListener("DOMContentLoaded", loadState);
+    </script>
+</body>
+</html>
