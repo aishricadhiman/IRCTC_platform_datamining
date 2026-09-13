@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+irctc.db
+*.log
+.env.disable
+.venu/
+venu/
+venv/
+.pytest_cache/
