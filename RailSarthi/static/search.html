@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - Route & Schedule Search (Mock)</title>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="background-color: #f0f7f9; font-family: sans-serif; padding: 40px;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h2>Search Trains & Schedules</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Step 2: Low-fidelity unstyled browser mock for Group 2/3 Search Database</p>
+        
+        <div class="raw-wireframe">
+            <div class="raw-title">GROUPS 2 & 3 SEARCH ENGINE & SCHEDULER (MOCK SKELETON)</div>
+            <p class="raw-desc">Low-fidelity wireframe. Query schedules from cached stations repository.</p>
+            
+            <form id="search-form">
+                <table border="0" cellpadding="4" cellspacing="0">
+                    <tr>
+                        <td>Source Station Code:</td>
+                        <td><input type="text" id="raw-src" value="NDLS" style="width: 80px;"></td>
+                    </tr>
+                    <tr>
+                        <td>Destination Station Code:</td>
+                        <td><input type="text" id="raw-dest" value="HBJ" style="width: 80px;"></td>
+                    </tr>
+                    <tr>
+                        <td>Class Selection:</td>
+                        <td>
+                            <select id="raw-class">
+                                <option value="SL">SL (Sleeper)</option>
+                                <option value="3A">3A (AC 3 Tier)</option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <div style="margin-top: 15px;">
+                    <button type="submit">Search Schedules & Check Probabilities</button>
+                </div>
+            </form>
+
+            <div id="raw-search-results" style="display: none; margin-top: 25px; border-top: 1px solid #000; padding-top: 15px;">
+                <strong>SEARCH MATCHES FOUND (FROM REDIS CACHE)</strong>
+                <table border="1" cellpadding="6" cellspacing="0" style="margin-top: 10px; width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background-color: #eee; color: #000;">
+                            <th>Train No.</th>
+                            <th>Train Name</th>
+                            <th>Availability Status</th>
+                            <th>Confirmation Prediction (ML)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="color: #000;">
+                            <td>12002</td>
+                            <td>Bhopal Shatabdi Express</td>
+                            <td>WL (Waitlist Queue)</td>
+                            <td style="color: #0d9488; font-weight: bold;">84% probability of upgrade</td>
+                            <td><button type="button" onclick="selectTrainAndProceed('12002')">Proceed to Booking</button></td>
+                        </tr>
+                        <tr style="color: #000;">
+                            <td>12626</td>
+                            <td>Kerala Express</td>
+                            <td>Available (6 seats left)</td>
+                            <td style="color: #555;">100% Guaranteed</td>
+                            <td><button type="button" onclick="selectTrainAndProceed('12626')">Proceed to Booking</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check Session Authentication
+        if (sessionStorage.getItem("userLoggedIn") !== "true") {
+            alert("Session unauthorized. Redirecting to Step 1.");
+            window.location.href = "/";
+        }
+
+        document.getElementById("search-form").addEventListener("submit", (e) => {
+            e.preventDefault();
+            console.log("[GET] [/search] - Queried train schedules.");
+            document.getElementById("raw-search-results").style.display = "block";
+        });
+
+        function selectTrainAndProceed(trainNum) {
+            const classVal = document.getElementById("raw-class").value;
+            console.log(`[WIZARD] Selected train: ${trainNum}, Class: ${classVal}`);
+            window.location.href = `/static/booking.html?train_number=${trainNum}&class_type=${classVal}`;
+        }
+    </script>
+</body>
+</html>

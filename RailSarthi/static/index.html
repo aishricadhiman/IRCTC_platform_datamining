@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSarthi - Seat Allocation & Waitlist Control Console</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Space+Mono&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container-no-sidebar">
+        <!-- Main Content (Full Width) -->
+        <main class="main-content-full">
+            <header class="top-header" id="wizard-header">
+                <div class="header-title">
+                    <h2 id="current-tab-title">User Authentication</h2>
+                    <p id="current-tab-subtitle">Step 1: Low-fidelity unstyled browser mock for Group 2 Authentication</p>
+                </div>
+                
+                <div class="control-panel" id="header-control-panel" style="display: none;">
+                    <div class="selector-group">
+                        <label for="train-select"><i class="fa-solid fa-train"></i> Train</label>
+                        <select id="train-select">
+                            <option value="12002">12002 - Shatabdi Express</option>
+                            <option value="12626">12626 - Kerala Express</option>
+                        </select>
+                    </div>
+                    <div class="selector-group">
+                        <label for="class-select"><i class="fa-solid fa-couch"></i> Class</label>
+                        <select id="class-select">
+                            <option value="SL">Sleeper (SL)</option>
+                            <option value="3A">AC 3 Tier (3A)</option>
+                        </select>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Body -->
+            <div class="dashboard-body">
+
+                <!-- ==================== STEP 1: AUTH SKELETON (UNSTYLED) ==================== -->
+                <section id="step-1-content" class="tab-content active">
+                    <div class="raw-wireframe">
+                        <div class="raw-title">GROUP 2 AUTHENTICATION SERVICE (MOCK SKELETON)</div>
+                        <p class="raw-desc">This is a low-fidelity unstyled browser rendering representing user signup/login models.</p>
+                        
+                        <form onsubmit="submitStep1(event)">
+                            <div class="raw-group">
+                                <label>Enter Username / Email:</label><br>
+                                <input type="text" value="traveler_irctc_mock@gmail.com" required style="width: 250px;">
+                            </div>
+                            <div class="raw-group" style="margin-top: 10px;">
+                                <label>Password Context Token:</label><br>
+                                <input type="password" value="pass12345" required style="width: 250px;">
+                            </div>
+                            <div class="raw-group" style="margin-top: 15px;">
+                                <button type="submit" style="font-family: inherit; font-size: 13px; padding: 4px 8px;">Login & Authorize Session</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+
+                <!-- ==================== STEP 2: SEARCH SKELETON (UNSTYLED) ==================== -->
+                <section id="step-2-content" class="tab-content">
+                    <div class="raw-wireframe">
+                        <div class="raw-title">GROUPS 2 & 3 SEARCH ENGINE & SCHEDULER (MOCK SKELETON)</div>
+                        <p class="raw-desc">Low-fidelity wireframe. Query schedules from cached stations repository.</p>
+                        
+                        <form onsubmit="submitStep2(event)">
+                            <table border="0" cellpadding="4" cellspacing="0">
+                                <tr>
+                                    <td>Source Station Code:</td>
+                                    <td><input type="text" id="raw-src" value="NDLS" style="width: 80px;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Destination Station Code:</td>
+                                    <td><input type="text" id="raw-dest" value="HBJ" style="width: 80px;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Class Selection:</td>
+                                    <td>
+                                        <select id="raw-class">
+                                            <option value="SL">SL (Sleeper)</option>
+                                            <option value="3A">3A (AC 3 Tier)</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </table>
+                            <div style="margin-top: 15px;">
+                                <button type="submit" style="font-size:13px; padding: 4px 8px;">Search Schedules & Check Probabilities</button>
+                            </div>
+                        </form>
+
+                        <div id="raw-search-results" style="display: none; margin-top: 25px; border-top: 1px solid #000; padding-top: 15px;">
+                            <strong>SEARCH MATCHES FOUND (FROM REDIS CACHE)</strong>
+                            <table border="1" cellpadding="6" cellspacing="0" style="margin-top: 10px; width: 100%; border-collapse: collapse; font-size: 12px;">
+                                <thead>
+                                    <tr style="background-color: #eee; color: #000;">
+                                        <th>Train No.</th>
+                                        <th>Train Name</th>
+                                        <th>Availability Status</th>
+                                        <th>Confirmation Prediction (ML)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="color: #fff;">
+                                        <td>12002</td>
+                                        <td>Bhopal Shatabdi Express</td>
+                                        <td>WL (Waitlist Queue)</td>
+                                        <td style="color: #0f0; font-weight: bold;">84% probability of upgrade</td>
+                                        <td><button type="button" onclick="selectTrainAndProceed('12002')">Proceed to Booking</button></td>
+                                    </tr>
+                                    <tr style="color: #fff;">
+                                        <td>12626</td>
+                                        <td>Kerala Express</td>
+                                        <td>Available (6 seats left)</td>
+                                        <td style="color: #aaa;">100% Guaranteed</td>
+                                        <td><button type="button" onclick="selectTrainAndProceed('12626')">Proceed to Booking</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ==================== STEP 3: SEATING & BOOKING (HIGH FIDELITY - GROUP 4) ==================== -->
+                <section id="step-3-content" class="tab-content">
+                    <!-- Dashboard Statistics Overview -->
+                    <div class="stats-grid" style="margin-bottom: 24px;">
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Confirmed Seats (CNF)</span>
+                            <span class="stat-value text-primary" id="stat-cnf">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">RAC Berths Occupied</span>
+                            <span class="stat-value text-warning" id="stat-rac">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Waitlist Priority (GNWL)</span>
+                            <span class="stat-value text-danger" id="stat-wl">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Vacant Berths Left</span>
+                            <span class="stat-value text-emerald" id="stat-vacant">72</span>
+                        </div>
+                    </div>
+
+                    <div class="booking-layout-grid">
+                        <!-- Left Panel: Booking Input -->
+                        <div class="glass-card panel-left">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-user-plus text-glow"></i> Passenger Reservation Form</h3>
+                                <p>Provide details to allocate seats. Concurrency locks will trigger automatically.</p>
+                            </div>
+                            
+                            <form id="booking-form" class="reservation-form">
+                                <div id="passenger-rows">
+                                    <div class="passenger-row-card glass-card">
+                                        <div class="passenger-row-header">
+                                            <h4>Passenger #1</h4>
+                                            <button type="button" class="btn-remove-passenger" style="display:none;"><i class="fa-solid fa-trash"></i></button>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group flex-2">
+                                                <label>Name</label>
+                                                <input type="text" class="p-name" placeholder="Full Name" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Age</label>
+                                                <input type="number" class="p-age" min="1" max="120" placeholder="Age" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Gender</label>
+                                                <select class="p-gender">
+                                                    <option value="M">Male</option>
+                                                    <option value="F">Female</option>
+                                                    <option value="O">Other</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group flex-2">
+                                                <label>Preference</label>
+                                                <select class="p-preference">
+                                                    <option value="NONE">No Preference</option>
+                                                    <option value="LOWER">Lower Berth</option>
+                                                    <option value="MIDDLE">Middle Berth</option>
+                                                    <option value="UPPER">Upper Berth</option>
+                                                    <option value="SIDE_LOWER">Side Lower</option>
+                                                    <option value="SIDE_UPPER">Side Upper</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="button" id="btn-add-passenger" class="btn-secondary">
+                                        <i class="fa-solid fa-plus"></i> Add Passenger
+                                    </button>
+                                    <button type="submit" class="btn-primary">
+                                        <i class="fa-solid fa-arrow-right"></i> Proceed to Checkout & Pay
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Right Panel: Interactive Seat Map -->
+                        <div class="glass-card panel-right">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-border-all text-glow"></i> Interactive Seating Grid</h3>
+                                <p id="display-coach-name" style="font-weight: 700; color: var(--accent-purple); margin-top: 4px;">COACH S1</p>
+                            </div>
+                            
+                            <!-- Legend display bar -->
+                            <div class="seat-legend" style="margin: 10px 0; display: flex; gap: 15px; justify-content: center; font-size: 11px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; border: 1px solid var(--accent-emerald); border-radius: 3px; display: inline-block;"></span> Vacant</div>
+                                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; background-color: var(--accent-purple); border-radius: 3px; display: inline-block;"></span> Confirmed (CNF)</div>
+                                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; background: linear-gradient(135deg, var(--accent-amber), hsl(30, 80%, 45%)); border-radius: 3px; display: inline-block;"></span> RAC Shared</div>
+                            </div>
+                            
+                            <div class="coach-wrapper" style="padding: 10px 0;">
+                                <div class="coach-container" style="min-width: 100%; border-radius: 12px;">
+                                    <div class="coach-body" style="padding: 16px;">
+                                        <div class="seats-grid" id="seats-grid-container" style="column-gap: 4px; row-gap: 4px;">
+                                            <!-- Seats rendered dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ==================== STEP 4: PAYMENT SKELETON (UNSTYLED) ==================== -->
+                <section id="step-4-content" class="tab-content">
+                    <div class="raw-wireframe">
+                        <div class="raw-title">GROUP 6 STRIPE / RAZORPAY PAYMENT GATEWAY (MOCK SKELETON)</div>
+                        <p class="raw-desc">Billing state machine sandbox callback panel.</p>
+                        
+                        <div style="background-color: #f7f7f7; border: 1px solid #000; padding: 16px; font-size: 13px; color: #000;">
+                            <strong>Transaction Summary:</strong><br>
+                            * Train Number: <span id="payment-summary-train">12002</span><br>
+                            * Class Category: <span id="payment-summary-class">SL</span><br>
+                            * Passenger Count: <span id="payment-summary-count">1</span><br>
+                            * Lock Duration: <span style="color: #ff0000; font-weight: bold;">10:00 (Redis Temp Lock Active)</span>
+                        </div>
+
+                        <div style="margin-top: 20px;">
+                            <label>Billing Address Placeholder:</label><br>
+                            <input type="text" value="123 Main Road, New Delhi, India" style="width: 350px;" disabled>
+                        </div>
+                        
+                        <div style="margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px;">
+                            <strong>SIMULATE INCOMING API GATEWAY WEBHOOK ACTIONS:</strong>
+                            <p style="font-size: 11px; margin-top: 4px; color: #333;">Triggering these simulates the payment gateway callbacks to the FastAPI webhook listener.</p>
+                            <div style="margin-top: 15px;">
+                                <button type="button" onclick="triggerMockPaymentWebhook('SUCCESS')" style="font-size:13px; font-weight: bold; background-color: #0f0; color: #000; padding: 6px 12px; cursor: pointer; border: 1px solid #000; margin-right: 15px;">Simulate payment.success (Confirm Ticket)</button>
+                                <button type="button" onclick="triggerMockPaymentWebhook('FAILED')" style="font-size:13px; font-weight: bold; background-color: #f00; color: #fff; padding: 6px 12px; cursor: pointer; border: 1px solid #000;">Simulate payment.failed (Release Locks)</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ==================== STEP 5: TICKET & QUEUE (HIGH FIDELITY - GROUP 4) ==================== -->
+                <section id="step-5-content" class="tab-content">
+                    <!-- Dashboard Statistics Overview -->
+                    <div class="stats-grid" style="margin-bottom: 24px;">
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Confirmed Seats (CNF)</span>
+                            <span class="stat-value text-primary" id="stat-cnf-step5">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">RAC Berths Occupied</span>
+                            <span class="stat-value text-warning" id="stat-rac-step5">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Waitlist Priority (GNWL)</span>
+                            <span class="stat-value text-danger" id="stat-wl-step5">0</span>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <span class="stat-label">Vacant Berths Left</span>
+                            <span class="stat-value text-emerald" id="stat-vacant-step5">72</span>
+                        </div>
+                    </div>
+
+                    <div class="booking-layout-grid">
+                        
+                        <!-- Left Panel: Booking Outcome & Cancellations -->
+                        <div class="glass-card panel-left">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                                <div>
+                                    <h3><i class="fa-solid fa-circle-check text-glow"></i> Booking Confirmation Receipts</h3>
+                                    <p>Manage PNR statuses and trigger cascading promotions.</p>
+                                </div>
+                                <button type="button" class="btn-primary" onclick="restartBookingWizard()" style="padding: 8px 16px; font-size: 12px;">
+                                    <i class="fa-solid fa-rotate-left"></i> Book Another Ticket
+                                </button>
+                            </div>
+                            
+                            <div class="bookings-list-container" id="active-bookings-list">
+                                <!-- Bookings rendered dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Waitlist Table Queue Board -->
+                        <div class="glass-card panel-right">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-users-rectangle text-glow"></i> General Waiting Queue (GNWL)</h3>
+                                <p>Live priority status updates.</p>
+                            </div>
+                            
+                            <div class="table-container">
+                                <table class="waitlist-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Priority</th>
+                                            <th>Passenger</th>
+                                            <th>Age/Gen</th>
+                                            <th>Status</th>
+                                            <th>Queue</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="waitlist-table-body">
+                                        <!-- Table rows loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Ticket Detail Modal -->
+    <div id="ticket-modal" class="modal-overlay">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-circle-check text-success"></i> Ticket Allocation Details</h3>
+                <button class="btn-close-modal" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="ticket-modal-body">
+                <!-- Filled dynamically by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

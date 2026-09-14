@@ -1,0 +1,31 @@
+{
+  "name": "_last",
+  "created": "2026-08-20T19:48:04+00:00",
+  "label": "",
+  "tests": {
+    "app/tests/test_allocation.py::test_allocate_seats_preference_lower": {
+      "test_id": "app/tests/test_allocation.py::test_allocate_seats_preference_lower",
+      "outcome": "passed",
+      "outputs": [],
+      "assertions": []
+    },
+    "app/tests/test_allocation.py::test_allocate_seats_senior_priority": {
+      "test_id": "app/tests/test_allocation.py::test_allocate_seats_senior_priority",
+      "outcome": "passed",
+      "outputs": [],
+      "assertions": []
+    },
+    "app/tests/test_allocation.py::test_allocate_seats_simple": {
+      "test_id": "app/tests/test_allocation.py::test_allocate_seats_simple",
+      "outcome": "passed",
+      "outputs": [],
+      "assertions": []
+    },
+    "app/tests/test_waitlist.py::test_rac_and_waitlist_cascade": {
+      "test_id": "app/tests/test_waitlist.py::test_rac_and_waitlist_cascade",
+      "outcome": "passed",
+      "outputs": [],
+      "assertions": []
+    }
+  }
+}
