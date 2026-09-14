@@ -143,6 +143,26 @@ services:
 
 
   # --------------------------------------------------
+  # Redis (caching + distributed locking)
+  # --------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    container_name: irctc-redis
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------
   # User Service
   # --------------------------------------------------
 
@@ -189,9 +209,12 @@ services:
 
     environment:
       DATABASE_URL: postgresql://postgres:postgres@inventory-db:5432/irctc_inventory
+      REDIS_URL: redis://redis:6379/0
 
     depends_on:
       inventory-db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   # --------------------------------------------------
@@ -259,3 +282,4 @@ volumes:
   booking-db-data:
   payment-db-data:
   notification-db-data:
+  redis-data:

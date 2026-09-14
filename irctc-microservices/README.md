@@ -13,7 +13,9 @@ This project implements the core backend microservices for an IRCTC system:
 - Payment processing simulation
 - Notification management
 
-Frontend/UI, forecasting, advanced reservation quotas, Redis synchronization, and real payment-gateway integration are outside the current core-microservices scope.
+Frontend/UI, forecasting, advanced reservation quotas, and real payment-gateway integration are outside the current core-microservices scope.
+
+inventory-service now uses Redis for a per-train distributed lock around seat reserve/release (so concurrent requests across service replicas don't oversell seats) and a short-TTL cache for availability reads, invalidated on any reserve/release/create.
 
 ## Architecture
 
