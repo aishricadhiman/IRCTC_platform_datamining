@@ -1,6 +1,9 @@
+import json
 import os
 import time
+import uuid
 
+import redis
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import (
@@ -29,6 +32,82 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+
+# --------------------------------------------------
+# Redis Configuration
+# --------------------------------------------------
+#
+# Redis backs two independent features here:
+#   1. A distributed lock per train_id so that concurrent
+#      reserve/release calls hitting different replicas of
+#      this service still serialize on the same train.
+#   2. A short-lived cache for availability reads, since
+#      that endpoint is read far more often than seats change.
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
+CACHE_TTL_SECONDS = 5
+LOCK_TTL_MS = 5000
+
+# Only releases a lock if it still holds the token we set,
+# so one request can never release a lock acquired by another
+# after its own lock already expired.
+_RELEASE_LOCK_SCRIPT = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
+
+def _lock_key(train_id: int) -> str:
+    return f"inventory:lock:{train_id}"
+
+
+def _cache_key(train_id: int) -> str:
+    return f"inventory:availability:{train_id}"
+
+
+class TrainLock:
+    """Distributed lock over a train's inventory, backed by Redis SET NX PX."""
+
+    def __init__(self, train_id: int):
+        self.key = _lock_key(train_id)
+        self.token = str(uuid.uuid4())
+
+    def acquire(self, timeout_seconds: float = 5.0) -> bool:
+        deadline = time.monotonic() + timeout_seconds
+
+        while time.monotonic() < deadline:
+
+            if redis_client.set(self.key, self.token, nx=True, px=LOCK_TTL_MS):
+                return True
+
+            time.sleep(0.05)
+
+        return False
+
+    def release(self):
+        redis_client.eval(_RELEASE_LOCK_SCRIPT, 1, self.key, self.token)
+
+    def __enter__(self):
+        if not self.acquire():
+            raise HTTPException(
+                status_code=503,
+                detail="Could not acquire inventory lock, try again"
+            )
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+
+
+def invalidate_availability_cache(train_id: int):
+    redis_client.delete(_cache_key(train_id))
 
 
 # --------------------------------------------------
@@ -94,10 +173,32 @@ def initialize_database():
     raise Exception("Could not connect to Inventory PostgreSQL.")
 
 
+def initialize_redis():
+
+    for attempt in range(10):
+
+        try:
+            redis_client.ping()
+
+            print("Connected to Redis successfully.")
+
+            return
+
+        except Exception as error:
+
+            print(f"Redis connection attempt {attempt + 1} failed.")
+            print(error)
+
+            time.sleep(3)
+
+    raise Exception("Could not connect to Redis.")
+
+
 @app.on_event("startup")
 def startup_event():
 
     initialize_database()
+    initialize_redis()
 
 
 # --------------------------------------------------
@@ -139,6 +240,8 @@ def create_inventory(data: InventoryCreate):
         db.commit()
         db.refresh(new_inventory)
 
+        invalidate_availability_cache(new_inventory.train_id)
+
         return {
             "train_id": new_inventory.train_id,
             "total_seats": new_inventory.total_seats,
@@ -157,6 +260,11 @@ def create_inventory(data: InventoryCreate):
 @app.get("/availability/{train_id}")
 def availability(train_id: int):
 
+    cached = redis_client.get(_cache_key(train_id))
+
+    if cached is not None:
+        return json.loads(cached)
+
     db = SessionLocal()
 
     try:
@@ -172,11 +280,19 @@ def availability(train_id: int):
                 detail="Inventory not found"
             )
 
-        return {
+        result = {
             "train_id": inventory.train_id,
             "total_seats": inventory.total_seats,
             "available_seats": inventory.available_seats
         }
+
+        redis_client.setex(
+            _cache_key(train_id),
+            CACHE_TTL_SECONDS,
+            json.dumps(result)
+        )
+
+        return result
 
     finally:
 
@@ -190,47 +306,52 @@ def availability(train_id: int):
 @app.post("/reserve/{train_id}")
 def reserve(train_id: int):
 
-    db = SessionLocal()
+    with TrainLock(train_id):
 
-    try:
+        db = SessionLocal()
 
-        # Lock this database row during the transaction.
-        # This prevents two concurrent requests from
-        # reserving the same last available seat.
+        try:
 
-        inventory = db.query(Inventory).filter(
-            Inventory.train_id == train_id
-        ).with_for_update().first()
+            # The Redis lock above serializes requests for this
+            # train across every replica of this service; the
+            # row lock below still guards against any writer
+            # that bypasses the Redis lock (e.g. a direct DB client).
 
-        if not inventory:
+            inventory = db.query(Inventory).filter(
+                Inventory.train_id == train_id
+            ).with_for_update().first()
 
-            raise HTTPException(
-                status_code=404,
-                detail="Inventory not found"
-            )
+            if not inventory:
 
-        if inventory.available_seats <= 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Inventory not found"
+                )
 
-            raise HTTPException(
-                status_code=409,
-                detail="No seats available"
-            )
+            if inventory.available_seats <= 0:
 
-        inventory.available_seats -= 1
+                raise HTTPException(
+                    status_code=409,
+                    detail="No seats available"
+                )
 
-        db.commit()
-        db.refresh(inventory)
+            inventory.available_seats -= 1
 
-        return {
-            "reserved": True,
-            "train_id": inventory.train_id,
-            "total_seats": inventory.total_seats,
-            "available_seats": inventory.available_seats
-        }
+            db.commit()
+            db.refresh(inventory)
 
-    finally:
+            invalidate_availability_cache(train_id)
 
-        db.close()
+            return {
+                "reserved": True,
+                "train_id": inventory.train_id,
+                "total_seats": inventory.total_seats,
+                "available_seats": inventory.available_seats
+            }
+
+        finally:
+
+            db.close()
 
 
 # --------------------------------------------------
@@ -240,34 +361,38 @@ def reserve(train_id: int):
 @app.post("/release/{train_id}")
 def release(train_id: int):
 
-    db = SessionLocal()
+    with TrainLock(train_id):
 
-    try:
+        db = SessionLocal()
 
-        inventory = db.query(Inventory).filter(
-            Inventory.train_id == train_id
-        ).with_for_update().first()
+        try:
 
-        if not inventory:
+            inventory = db.query(Inventory).filter(
+                Inventory.train_id == train_id
+            ).with_for_update().first()
 
-            raise HTTPException(
-                status_code=404,
-                detail="Inventory not found"
-            )
+            if not inventory:
 
-        if inventory.available_seats < inventory.total_seats:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Inventory not found"
+                )
 
-            inventory.available_seats += 1
+            if inventory.available_seats < inventory.total_seats:
 
-        db.commit()
-        db.refresh(inventory)
+                inventory.available_seats += 1
 
-        return {
-            "train_id": inventory.train_id,
-            "total_seats": inventory.total_seats,
-            "available_seats": inventory.available_seats
-        }
+            db.commit()
+            db.refresh(inventory)
 
-    finally:
+            invalidate_availability_cache(train_id)
 
-        db.close()
+            return {
+                "train_id": inventory.train_id,
+                "total_seats": inventory.total_seats,
+                "available_seats": inventory.available_seats
+            }
+
+        finally:
+
+            db.close()
