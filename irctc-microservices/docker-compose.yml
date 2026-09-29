@@ -173,6 +173,9 @@ services:
 
     environment:
       DATABASE_URL: postgresql://postgres:postgres@user-db:5432/irctc_users
+      JWT_SECRET_KEY: dev-only-insecure-secret-change-me
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRY_MINUTES: "60"
 
     depends_on:
       user-db:
@@ -234,22 +237,47 @@ services:
       PAYMENT_URL: http://payment-service:8000
       NOTIFICATION_URL: http://notification-service:8000
 
+      # Shared with payment-service below; guards POST /internal/payment-events
+      INTERNAL_WEBHOOK_SECRET: dev-only-insecure-webhook-secret
+
     depends_on:
       booking-db:
         condition: service_healthy
 
 
   # --------------------------------------------------
-  # Payment Services
+  # Payment Gateway (Phase 4)
   # --------------------------------------------------
+  #
+  # This service name/container/port were previously the placeholder
+  # implementation in ./payment-service (always-succeeds, no lifecycle, no
+  # refunds). Phase 4 replaces it in-place with the standalone, more
+  # complete implementation at ../irctc-payment-gateway (real INITIATED ->
+  # PROCESSING -> SUCCESS/FAILED lifecycle, idempotency, refunds, audit
+  # log, mock + Razorpay Test Mode providers). The old placeholder's source
+  # is left untouched on disk at ./payment-service and is simply no longer
+  # referenced by this build - decommissioned, not deleted, until this
+  # integration has been verified.
 
   payment-service:
-    build: ./payment-service
+    build: ../irctc-payment-gateway
     container_name: irctc-payment-service
     ports:
       - "8005:8000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@payment-db:5432/irctc_payments
+      SELF_BASE_URL: http://localhost:8005
+
+      # Phase 5: where to deliver PaymentSuccess/PaymentFailed events.
+      # Direct service-to-service - deliberately NOT via the API Gateway.
+      BOOKING_SERVICE_URL: http://booking-service:8000
+      INTERNAL_WEBHOOK_SECRET: dev-only-insecure-webhook-secret
+      WEBHOOK_POLL_INTERVAL_SECONDS: "3"
+
+      # Without this, this service's print() output is block-buffered inside
+      # the container and the webhook loop's retry/failure lines never reach
+      # docker logs - a stalled retry would otherwise be invisible.
+      PYTHONUNBUFFERED: "1"
     depends_on:
       payment-db:
         condition: service_healthy
@@ -269,6 +297,30 @@ services:
     depends_on:
       notification-db:
         condition: service_healthy
+
+  # --------------------------------------------------
+  # API Gateway (Phase 1: pure reverse proxy)
+  # --------------------------------------------------
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: irctc-api-gateway
+    ports:
+      - "8080:8000"
+    environment:
+      USER_SERVICE_URL: http://user-service:8000
+      TRAIN_SERVICE_URL: http://train-service:8000
+      INVENTORY_SERVICE_URL: http://inventory-service:8000
+      BOOKING_SERVICE_URL: http://booking-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+    depends_on:
+      - user-service
+      - train-service
+      - inventory-service
+      - booking-service
+      - payment-service
+      - notification-service
 
 
 # --------------------------------------------------

@@ -58,7 +58,15 @@ def publish(topic: str, payload: dict) -> int:
 def poll(consumer_name: str, topics: list, batch_size: int = 20):
     """
     Fetch events newer than this consumer's last committed offset, for the
-    given topics, and advance the offset. Returns a list of (event_id, topic, payload).
+    given topics. Returns a list of (event_id, topic, payload).
+
+    Does NOT advance the offset - call ack() once the caller has actually
+    finished processing (e.g. successfully delivered) the returned events.
+    Fetching without advancing is what makes the "at-least-once" guarantee
+    in this module's docstring true: a caller that fetches a batch and then
+    crashes/fails before calling ack() will simply be handed the same
+    batch again on its next poll(), instead of that batch being silently
+    marked consumed the moment it was read.
     """
     db = SessionLocal()
     try:
@@ -76,10 +84,30 @@ def poll(consumer_name: str, topics: list, batch_size: int = 20):
             .limit(batch_size)
             .all()
         )
-        results = [(e.id, e.topic, json.loads(e.payload)) for e in events]
-        if events:
-            offset_row.last_event_id = events[-1].id
-            db.commit()
-        return results
+        return [(e.id, e.topic, json.loads(e.payload)) for e in events]
+    finally:
+        db.close()
+
+
+def ack(consumer_name: str, last_event_id: int):
+    """
+    Advances consumer_name's committed offset to last_event_id, marking
+    every event up to and including it as successfully processed. Call
+    this only after the caller has finished processing those events -
+    e.g. only after a webhook delivery attempt actually succeeded.
+
+    Safe to call with an id at or behind the current offset (a no-op via
+    the max()), so a delayed/duplicate ack can never move the offset
+    backwards.
+    """
+    db = SessionLocal()
+    try:
+        offset_row = db.get(ConsumerOffset, consumer_name)
+        if offset_row is None:
+            offset_row = ConsumerOffset(consumer_name=consumer_name, last_event_id=last_event_id)
+            db.add(offset_row)
+        else:
+            offset_row.last_event_id = max(offset_row.last_event_id, last_event_id)
+        db.commit()
     finally:
         db.close()

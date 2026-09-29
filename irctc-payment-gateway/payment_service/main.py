@@ -25,6 +25,7 @@ import uuid as uuid_lib
 from datetime import datetime, timedelta
 from typing import Optional
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -47,6 +48,31 @@ load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Payment Service")
+
+# Externally-reachable base URL for this service itself, used only to build
+# the browser-facing Razorpay checkout link below. Defaults to this
+# service's standalone dev port (see scripts/run_payment_only.py); the
+# irctc-microservices docker-compose stack overrides this to the host-
+# mapped port that stack publishes this service on.
+SELF_BASE_URL = os.environ.get("SELF_BASE_URL", "http://127.0.0.1:8003")
+
+# --------------------------------------------------
+# Phase 5: Booking Service webhook delivery
+# --------------------------------------------------
+#
+# Internal, service-to-service only - never routed through the API Gateway
+# and never called by a browser. BOOKING_SERVICE_URL is Booking Service's
+# address on the Docker network; INTERNAL_WEBHOOK_SECRET is a shared
+# secret both services are configured with, checked by Booking Service on
+# receipt (the simplest protection appropriate for an internal call - not
+# a redesign of the user-facing JWT auth from Phase 3, which has no
+# business guarding a service-to-service endpoint).
+BOOKING_SERVICE_URL = os.environ.get("BOOKING_SERVICE_URL", "http://localhost:8004")
+INTERNAL_WEBHOOK_SECRET = os.environ.get(
+    "INTERNAL_WEBHOOK_SECRET", "dev-only-insecure-webhook-secret"
+)
+WEBHOOK_POLL_INTERVAL_SECONDS = int(os.environ.get("WEBHOOK_POLL_INTERVAL_SECONDS", 3))
+WEBHOOK_CONSUMER_NAME = "booking-service-webhook"
 
 RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET")
@@ -205,7 +231,7 @@ def initiate_payment(req: InitiateRequest):
     )
     response = _txn_response(txn)
     if PG_MODE == "RAZORPAY":
-        response["checkoutPageUrl"] = f"http://127.0.0.1:8003/payment/checkout/{txn.txn_reference}"
+        response["checkoutPageUrl"] = f"{SELF_BASE_URL}/payment/checkout/{txn.txn_reference}"
     return response
 
 
@@ -599,6 +625,53 @@ async def reconciliation_loop():
             db.close()
 
 
+# ---------------------------------------------------------------------------
+# Webhook delivery loop (Phase 5)
+# ---------------------------------------------------------------------------
+#
+# Delivers every PaymentSuccess/PaymentFailed event - however it was
+# produced (an immediate terminal outcome from /payment/initiate, a
+# reconciled PROCESSING transaction, or a future /payment/verify or
+# /payment/callback resolution) - to Booking Service's internal webhook.
+#
+# Reuses the existing durable event_bus rather than adding a new broker:
+# events are only ever acknowledged (offset advanced) after a delivery
+# attempt actually succeeds, so a Booking Service outage does not lose
+# events - they simply remain undelivered and are retried on the next
+# poll tick once Booking Service is reachable again. A batch is delivered
+# in order; delivery stops at the first failure in a batch so no later
+# event is ever acknowledged ahead of an earlier one that failed.
+
+async def webhook_delivery_loop():
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        while True:
+            await asyncio.sleep(WEBHOOK_POLL_INTERVAL_SECONDS)
+
+            events = event_bus.poll(WEBHOOK_CONSUMER_NAME, ["PaymentSuccess", "PaymentFailed"])
+
+            for event_id, topic, payload in events:
+                try:
+                    response = await client.post(
+                        f"{BOOKING_SERVICE_URL}/internal/payment-events",
+                        json={"event_id": event_id, "topic": topic, "payload": payload},
+                        headers={"X-Internal-Webhook-Secret": INTERNAL_WEBHOOK_SECRET},
+                    )
+                except httpx.RequestError as error:
+                    print(f"[webhook] delivery failed for event {event_id} (Booking Service unreachable: {error}); will retry")
+                    break
+
+                if response.status_code >= 500:
+                    print(f"[webhook] Booking Service returned {response.status_code} for event {event_id}; will retry")
+                    break
+
+                # 2xx or a 4xx (e.g. an unknown booking id) both mean Booking
+                # Service durably handled/decided this event - acknowledge
+                # either way so a permanently-invalid event never blocks the
+                # queue forever.
+                event_bus.ack(WEBHOOK_CONSUMER_NAME, event_id)
+
+
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(reconciliation_loop())
+    asyncio.create_task(webhook_delivery_loop())
