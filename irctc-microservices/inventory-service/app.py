@@ -1,134 +1,27 @@
 import json
-import os
 import time
-import uuid
+from typing import List, Optional
 
-import redis
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer
+
+from allocation import (
+    allocate_seats,
+    find_existing_allocation,
+    release_allocation,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
-
-
-# --------------------------------------------------
-# Database Configuration
-# --------------------------------------------------
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/irctc_inventory"
+from locks import (
+    CACHE_TTL_SECONDS,
+    TrainLock,
+    _cache_key,
+    _seat_cache_key,
+    invalidate_availability_cache,
+    invalidate_seat_availability_cache,
+    redis_client,
 )
-
-engine = create_engine(DATABASE_URL)
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
-Base = declarative_base()
-
-
-# --------------------------------------------------
-# Redis Configuration
-# --------------------------------------------------
-#
-# Redis backs two independent features here:
-#   1. A distributed lock per train_id so that concurrent
-#      reserve/release calls hitting different replicas of
-#      this service still serialize on the same train.
-#   2. A short-lived cache for availability reads, since
-#      that endpoint is read far more often than seats change.
-
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
-redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-
-CACHE_TTL_SECONDS = 5
-LOCK_TTL_MS = 5000
-
-# Only releases a lock if it still holds the token we set,
-# so one request can never release a lock acquired by another
-# after its own lock already expired.
-_RELEASE_LOCK_SCRIPT = """
-if redis.call("get", KEYS[1]) == ARGV[1] then
-    return redis.call("del", KEYS[1])
-else
-    return 0
-end
-"""
-
-
-def _lock_key(train_id: int) -> str:
-    return f"inventory:lock:{train_id}"
-
-
-def _cache_key(train_id: int) -> str:
-    return f"inventory:availability:{train_id}"
-
-
-class TrainLock:
-    """Distributed lock over a train's inventory, backed by Redis SET NX PX."""
-
-    def __init__(self, train_id: int):
-        self.key = _lock_key(train_id)
-        self.token = str(uuid.uuid4())
-
-    def acquire(self, timeout_seconds: float = 5.0) -> bool:
-        deadline = time.monotonic() + timeout_seconds
-
-        while time.monotonic() < deadline:
-
-            if redis_client.set(self.key, self.token, nx=True, px=LOCK_TTL_MS):
-                return True
-
-            time.sleep(0.05)
-
-        return False
-
-    def release(self):
-        redis_client.eval(_RELEASE_LOCK_SCRIPT, 1, self.key, self.token)
-
-    def __enter__(self):
-        if not self.acquire():
-            raise HTTPException(
-                status_code=503,
-                detail="Could not acquire inventory lock, try again"
-            )
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.release()
-
-
-def invalidate_availability_cache(train_id: int):
-    redis_client.delete(_cache_key(train_id))
-
-
-# --------------------------------------------------
-# Database Model
-# --------------------------------------------------
-
-class Inventory(Base):
-    __tablename__ = "inventory"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    train_id = Column(
-        Integer,
-        unique=True,
-        nullable=False,
-        index=True
-    )
-
-    total_seats = Column(Integer, nullable=False)
-
-    available_seats = Column(Integer, nullable=False)
+from models import Base, Coach, Inventory, Seat, SeatAllocation, SessionLocal, engine
+from promotion import cancel_allocations, count_rac_capacity
+from seed import seed_inventory
 
 
 # --------------------------------------------------
@@ -139,7 +32,7 @@ app = FastAPI(title="IRCTC Inventory Service")
 
 
 # --------------------------------------------------
-# Request Schema
+# Request Schemas
 # --------------------------------------------------
 
 class InventoryCreate(BaseModel):
@@ -147,8 +40,42 @@ class InventoryCreate(BaseModel):
     total_seats: int
 
 
+class PassengerRequest(BaseModel):
+    # The caller's own handle for this passenger. Inventory stores it only to
+    # echo outcomes back - no passenger details are kept here.
+    passenger_ref: str
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    berth_preference: str = "NONE"
+
+
+class AllocateRequest(BaseModel):
+    class_type: str
+    allocation_ref: str
+    booking_id: Optional[int] = None
+    passengers: List[PassengerRequest]
+
+    # TEST HOOK ONLY - raises after seats have been modified but before the
+    # commit, to prove the transaction rolls back cleanly. Defaults to False
+    # and is a no-op for real traffic. Mirrors the force_outcome /
+    # simulate_confirm_failure hooks already used elsewhere in this project.
+    simulate_failure: bool = False
+
+
+class ReleaseRequest(BaseModel):
+    allocation_ref: str
+
+
+class CancelRequest(BaseModel):
+    class_type: str
+    allocation_ref: str
+    # Omit to cancel every passenger on this allocation; supply a subset to
+    # cancel only those passengers.
+    passenger_refs: Optional[List[str]] = None
+
+
 # --------------------------------------------------
-# Database Initialization
+# Startup
 # --------------------------------------------------
 
 def initialize_database():
@@ -156,10 +83,12 @@ def initialize_database():
     for attempt in range(10):
 
         try:
+            # Additive: creates the new per-seat tables and leaves the legacy
+            # inventory table exactly as it is.
             Base.metadata.create_all(bind=engine)
 
             print("Connected to Inventory PostgreSQL successfully.")
-            print("Inventory table is ready.")
+            print("Inventory tables are ready.")
 
             return
 
@@ -200,10 +129,18 @@ def startup_event():
     initialize_database()
     initialize_redis()
 
+    # Idempotent - returns immediately if the coach is already seeded.
+    seed_inventory()
 
-# --------------------------------------------------
-# Create Inventory
-# --------------------------------------------------
+
+# ==================================================
+# LEGACY COUNTER API (Phases 1-5) - BEHAVIOUR UNCHANGED
+# ==================================================
+#
+# Booking Service still drives these until the Phase 8 cutover. They operate
+# solely on the legacy `inventory` counter row and never touch the per-seat
+# tables below.
+
 
 @app.post("/inventory")
 def create_inventory(data: InventoryCreate):
@@ -253,10 +190,6 @@ def create_inventory(data: InventoryCreate):
         db.close()
 
 
-# --------------------------------------------------
-# Check Availability
-# --------------------------------------------------
-
 @app.get("/availability/{train_id}")
 def availability(train_id: int):
 
@@ -298,10 +231,6 @@ def availability(train_id: int):
 
         db.close()
 
-
-# --------------------------------------------------
-# Reserve One Seat
-# --------------------------------------------------
 
 @app.post("/reserve/{train_id}")
 def reserve(train_id: int):
@@ -354,10 +283,6 @@ def reserve(train_id: int):
             db.close()
 
 
-# --------------------------------------------------
-# Release One Seat
-# --------------------------------------------------
-
 @app.post("/release/{train_id}")
 def release(train_id: int):
 
@@ -392,6 +317,356 @@ def release(train_id: int):
                 "total_seats": inventory.total_seats,
                 "available_seats": inventory.available_seats
             }
+
+        finally:
+
+            db.close()
+
+
+# ==================================================
+# PHASE 6 PER-SEAT API
+# ==================================================
+#
+# Reads live under /inventory/... and are reachable through the API Gateway.
+# Mutations live under /internal/... , which the Gateway does not route, so
+# a browser cannot allocate or release berths directly - the same isolation
+# pattern already used by Booking Service's /internal/payment-events.
+
+
+@app.get("/inventory/{train_id}/seats")
+def get_seats(train_id: int, class_type: str):
+
+    db = SessionLocal()
+
+    try:
+
+        coaches = db.query(Coach).filter(
+            Coach.train_id == train_id,
+            Coach.class_type == class_type
+        ).order_by(Coach.id.asc()).all()
+
+        if not coaches:
+
+            raise HTTPException(
+                status_code=404,
+                detail=f"No coaches found for train {train_id} class {class_type}"
+            )
+
+        payload = []
+
+        for coach in coaches:
+
+            seats = db.query(Seat).filter(
+                Seat.coach_id == coach.id
+            ).order_by(Seat.seat_number.asc()).all()
+
+            payload.append({
+                "coach_name": coach.name,
+                "class_type": coach.class_type,
+                "total_seats": coach.total_seats,
+                "seats": [
+                    {
+                        "seat_number": seat.seat_number,
+                        "berth_type": seat.berth_type,
+                        "status": seat.status,
+                    }
+                    for seat in seats
+                ]
+            })
+
+        return {
+            "train_id": train_id,
+            "class_type": class_type,
+            "coaches": payload
+        }
+
+    finally:
+
+        db.close()
+
+
+@app.get("/inventory/{train_id}/availability")
+def seat_availability(train_id: int, class_type: str):
+
+    cached = redis_client.get(_seat_cache_key(train_id, class_type))
+
+    if cached is not None:
+        return json.loads(cached)
+
+    db = SessionLocal()
+
+    try:
+
+        coaches = db.query(Coach).filter(
+            Coach.train_id == train_id,
+            Coach.class_type == class_type
+        ).all()
+
+        if not coaches:
+
+            raise HTTPException(
+                status_code=404,
+                detail=f"No coaches found for train {train_id} class {class_type}"
+            )
+
+        coach_ids = [coach.id for coach in coaches]
+
+        seats = db.query(Seat).filter(Seat.coach_id.in_(coach_ids)).all()
+
+        total = len(seats)
+        blocked = sum(1 for seat in seats if seat.status == "BLOCKED")
+
+        cnf_available = sum(
+            1 for seat in seats
+            if seat.status == "VACANT" and seat.berth_type != "SIDE_LOWER"
+        )
+
+        cnf_booked = sum(1 for seat in seats if seat.status == "BOOKED")
+
+        rac_one = sum(1 for seat in seats if seat.status == "RAC_ONE")
+        rac_full = sum(1 for seat in seats if seat.status == "RAC_FULL")
+
+        rac_vacant_berths = sum(
+            1 for seat in seats
+            if seat.status == "VACANT" and seat.berth_type == "SIDE_LOWER"
+        )
+
+        result = {
+            "train_id": train_id,
+            "class_type": class_type,
+            "total_seats": total,
+            # Historical consumed capacity whose seat identity is unknown -
+            # see seed.py. Never allocatable.
+            "blocked_seats": blocked,
+            "cnf_available": cnf_available,
+            "cnf_booked": cnf_booked,
+            # Each SIDE_LOWER berth holds two RAC passengers.
+            "rac_slots_available": (rac_vacant_berths * 2) + rac_one,
+            "rac_slots_used": rac_one + (rac_full * 2),
+        }
+
+        redis_client.setex(
+            _seat_cache_key(train_id, class_type),
+            CACHE_TTL_SECONDS,
+            json.dumps(result)
+        )
+
+        return result
+
+    finally:
+
+        db.close()
+
+
+@app.post("/internal/inventory/{train_id}/allocate")
+def allocate(train_id: int, request: AllocateRequest):
+
+    if not request.passengers:
+
+        raise HTTPException(
+            status_code=400,
+            detail="At least one passenger is required"
+        )
+
+    with TrainLock(train_id, request.class_type):
+
+        db = SessionLocal()
+
+        try:
+
+            replay = find_existing_allocation(
+                db, request.allocation_ref, request.passengers
+            )
+
+            if replay is not None:
+                return replay
+
+            result = allocate_seats(
+                db=db,
+                train_id=train_id,
+                class_type=request.class_type,
+                allocation_ref=request.allocation_ref,
+                booking_id=request.booking_id,
+                passengers=request.passengers,
+            )
+
+            if request.simulate_failure:
+                raise RuntimeError(
+                    "Simulated allocation failure before commit (test hook)"
+                )
+
+            db.commit()
+
+            invalidate_seat_availability_cache(train_id, request.class_type)
+
+            return result
+
+        except ValueError as error:
+
+            db.rollback()
+
+            raise HTTPException(status_code=404, detail=str(error))
+
+        except HTTPException:
+
+            db.rollback()
+            raise
+
+        except Exception as error:
+
+            db.rollback()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Allocation failed: {error}"
+            )
+
+        finally:
+
+            db.close()
+
+
+@app.post("/internal/inventory/{train_id}/release")
+def release_seats(train_id: int, request: ReleaseRequest):
+
+    # Work out which class this allocation belongs to so the right lock is
+    # taken. A ref with nothing outstanding needs no lock at all - returning
+    # an empty result is what makes a duplicate release harmless.
+    db = SessionLocal()
+
+    try:
+
+        live = db.query(SeatAllocation, Coach.class_type).join(
+            Seat, Seat.id == SeatAllocation.seat_id
+        ).join(
+            Coach, Coach.id == Seat.coach_id
+        ).filter(
+            SeatAllocation.allocation_ref == request.allocation_ref,
+            SeatAllocation.released_at.is_(None)
+        ).first()
+
+        class_type = live[1] if live else None
+
+    finally:
+
+        db.close()
+
+    if class_type is None:
+
+        return {
+            "allocation_ref": request.allocation_ref,
+            "released": []
+        }
+
+    with TrainLock(train_id, class_type):
+
+        db = SessionLocal()
+
+        try:
+
+            released = release_allocation(db, request.allocation_ref)
+
+            db.commit()
+
+            invalidate_seat_availability_cache(train_id, class_type)
+
+            return {
+                "allocation_ref": request.allocation_ref,
+                "released": released
+            }
+
+        except HTTPException:
+
+            db.rollback()
+            raise
+
+        except Exception as error:
+
+            db.rollback()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Release failed: {error}"
+            )
+
+        finally:
+
+            db.close()
+
+
+@app.post("/internal/inventory/{train_id}/cancel")
+def cancel_seats(train_id: int, request: CancelRequest):
+    """
+    Cancels booked berths and runs the RAC -> CNF promotion each freed
+    confirmed berth triggers.
+
+    Waiting-list promotion is deliberately NOT done here: Inventory has no
+    queue. The response reports how much RAC capacity is free afterwards so
+    Booking Service, which owns the waiting list, can decide who fills it and
+    call allocate() for them.
+    """
+
+    with TrainLock(train_id, request.class_type):
+
+        db = SessionLocal()
+
+        try:
+
+            cancelled, promotions = cancel_allocations(
+                db=db,
+                train_id=train_id,
+                class_type=request.class_type,
+                allocation_ref=request.allocation_ref,
+                passenger_refs=request.passenger_refs,
+            )
+
+            db.commit()
+
+            invalidate_seat_availability_cache(train_id, request.class_type)
+
+            # Re-read post-commit so the figure reported back is the settled
+            # state rather than the mid-transaction one.
+            rac_slots_available = 0
+
+            coaches = db.query(Coach).filter(
+                Coach.train_id == train_id,
+                Coach.class_type == request.class_type
+            ).all()
+
+            if coaches:
+                seats = db.query(Seat).filter(
+                    Seat.coach_id.in_([coach.id for coach in coaches])
+                ).all()
+                rac_slots_available = count_rac_capacity(
+                    {seat.id: seat for seat in seats}
+                )
+
+            return {
+                "allocation_ref": request.allocation_ref,
+                "cancelled": cancelled,
+                "promotions": promotions,
+                "rac_slots_available": rac_slots_available,
+            }
+
+        except ValueError as error:
+
+            db.rollback()
+
+            raise HTTPException(status_code=404, detail=str(error))
+
+        except HTTPException:
+
+            db.rollback()
+            raise
+
+        except Exception as error:
+
+            db.rollback()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Cancellation failed: {error}"
+            )
 
         finally:
 
